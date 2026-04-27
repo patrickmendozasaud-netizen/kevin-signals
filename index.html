@@ -540,16 +540,7 @@ function showPage(n) {
   var p=document.getElementById('page-'+n); if(p) p.classList.add('active');
   var b=document.querySelector('[data-page="'+n+'"]'); if(b) b.classList.add('active');
 }
-document.querySelectorAll('.nbtn').forEach(function(b){b.addEventListener('click',function(){showPage(this.getAttribute('data-page'));});});
-document.querySelectorAll('.fchip').forEach(function(c){c.addEventListener('click',function(){curFilter=this.getAttribute('data-filter');document.querySelectorAll('.fchip').forEach(function(x){x.classList.remove('active');});this.classList.add('active');renderStocks();});});
-document.getElementById('importNavBtn').addEventListener('click',function(){showPage('import');});
-document.getElementById('notifBtn').addEventListener('click',requestNotifs);
-document.getElementById('refreshBtn').addEventListener('click',function(){doRefresh(true);});
-document.getElementById('parseBtn').addEventListener('click',parseReport);
-document.getElementById('dismissBtn').addEventListener('click',function(){localStorage.setItem('instDis','1');document.getElementById('installBanner').classList.remove('show');});
-document.getElementById('goImport').addEventListener('click',function(){showPage('import');});
-document.getElementById('modalOverlay').addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
-['push','buy','sell','lvl','auto','analyst','news','sync'].forEach(function(k){var el=document.getElementById('tg-'+k);if(el)el.addEventListener('click',function(){settings[k]=!settings[k];this.classList.toggle('on',settings[k]);if(k==='auto'){if(settings.auto)startAutoRefresh();else stopAutoRefresh();}});});
+// Event wiring moved to DOMContentLoaded below
 
 // ═══════════════════════════════════════════════
 // PARSER
@@ -1319,9 +1310,7 @@ function updateSettings(){
 function copySyncCode() {
   var binId=getCloudBinId();
   if(!binId){alert('No sync code yet — import a report first.');return;}
-  if(navigator.clipboard){navigator.clipboard.writeText(binId).then(function(){alert('Sync code copied: '+binId.slice(-6)+'
-
-Paste this in Settings → Import Sync Code on your other device.');});}
+  if(navigator.clipboard){navigator.clipboard.writeText(binId).then(function(){alert('Sync code copied: '+binId.slice(-6)+'\n\nPaste this in Settings to Import Sync Code on your other device.');});}
   else{prompt('Copy this sync code and paste it on your other device:',binId);}
 }
 
@@ -1353,6 +1342,40 @@ function showInstall(){var isIOS=/iphone|ipad|ipod/i.test(navigator.userAgent);v
 // INIT
 // ═══════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded',function(){
+  // ── Wire all buttons and nav here so DOM is ready ──
+  document.querySelectorAll('.nbtn').forEach(function(b){
+    b.addEventListener('click',function(){showPage(this.getAttribute('data-page'));});
+  });
+  document.querySelectorAll('.fchip').forEach(function(c){
+    c.addEventListener('click',function(){
+      curFilter=this.getAttribute('data-filter');
+      document.querySelectorAll('.fchip').forEach(function(x){x.classList.remove('active');});
+      this.classList.add('active');
+      renderStocks();
+    });
+  });
+  var importNavBtn=document.getElementById('importNavBtn');
+  if(importNavBtn)importNavBtn.addEventListener('click',function(){showPage('import');});
+  var notifBtn=document.getElementById('notifBtn');
+  if(notifBtn)notifBtn.addEventListener('click',requestNotifs);
+  var refreshBtn=document.getElementById('refreshBtn');
+  if(refreshBtn)refreshBtn.addEventListener('click',function(){doRefresh(true);});
+  var parseBtn=document.getElementById('parseBtn');
+  if(parseBtn)parseBtn.addEventListener('click',parseReport);
+  var dismissBtn=document.getElementById('dismissBtn');
+  if(dismissBtn)dismissBtn.addEventListener('click',function(){localStorage.setItem('instDis','1');document.getElementById('installBanner').classList.remove('show');});
+  var goImport=document.getElementById('goImport');
+  if(goImport)goImport.addEventListener('click',function(){showPage('import');});
+  var modalOverlay=document.getElementById('modalOverlay');
+  if(modalOverlay)modalOverlay.addEventListener('click',function(e){if(e.target===this)this.classList.remove('open');});
+  ['push','buy','sell','lvl','auto','analyst','news','sync'].forEach(function(k){
+    var el=document.getElementById('tg-'+k);
+    if(el)el.addEventListener('click',function(){
+      settings[k]=!settings[k];
+      this.classList.toggle('on',settings[k]);
+      if(k==='auto'){if(settings.auto)startAutoRefresh();else stopAutoRefresh();}
+    });
+  });
   try{renderBrief();}catch(e){console.warn(e);}
   try{renderStocks();}catch(e){console.warn(e);}
   try{renderSignals();}catch(e){console.warn(e);}
