@@ -881,8 +881,10 @@ function renderStocks() {
       }
       analystBox+='<div class="analyst-bar"><div class="bar-b" style="width:'+bp+'%"></div><div class="bar-h" style="width:'+hp+'%"></div><div class="bar-s" style="width:'+sp+'%"></div></div>';
       analystBox+='<div class="analyst-counts"><span class="up">'+analyst.buy+' Buy</span><span class="wa">'+analyst.hold+' Hold</span><span class="dn">'+analyst.sell+' Sell</span></div></div>';
+    } else if(analyst&&analyst.error){
+      analystBox='<div class="analyst-box" style="text-align:center;color:var(--subtle);font-size:11px;font-family:var(--mono);padding:8px">No analyst data available for '+s.ticker+'</div>';
     } else if(settings.analyst&&s.category!=='bearish'){
-      analystBox='<div class="analyst-box" style="text-align:center;color:var(--subtle);font-size:11px;font-family:var(--mono)">Loading analyst data...</div>';
+      analystBox='<div class="analyst-box" style="text-align:center;color:var(--subtle);font-size:11px;font-family:var(--mono);padding:8px"><span class="spinner"></span>Loading analyst ratings...</div>';
     }
 
     // CHIPS
@@ -1006,33 +1008,55 @@ function loadPrices(cb) {
 }
 
 function loadOneTicker(sym,cb) {
-  fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=30d')
+  // Use Yahoo Finance v8 via a CORS proxy — required for GitHub Pages
+  // We try two proxy fallbacks so if one is rate-limited the other takes over
+  var yahooUrl = 'https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(sym)+'?interval=1d&range=30d';
+  var proxy1 = 'https://api.allorigins.win/raw?url=' + encodeURIComponent(yahooUrl);
+  var proxy2 = 'https://corsproxy.io/?' + encodeURIComponent(yahooUrl);
+
+  function parse(d) {
+    var res=d.chart&&d.chart.result&&d.chart.result[0];
+    if(!res) throw new Error('no result');
+    var meta=res.meta;
+    var price=meta.regularMarketPrice||meta.chartPreviousClose;
+    var prev=meta.chartPreviousClose||meta.previousClose||price;
+    var chg=price-prev; var pct=prev?(chg/prev)*100:0;
+    var vol=meta.regularMarketVolume||0;
+    var q=((res.indicators||{}).quote||[{}])[0];
+    var closes=(q.close||[]).filter(function(x){return x!=null;});
+    var vols=(q.volume||[]).filter(function(x){return x!=null;});
+    var avgVol=vols.length>5?vols.slice(-20).reduce(function(a,b){return a+b;},0)/Math.min(vols.length,20):null;
+    priceData[sym]={price:price,chg:chg,pct:pct,vol:vol,volSpike:avgVol&&vol>avgVol*2,rsi:calcRSI(closes),ts:Date.now()};
+    try{localStorage.setItem('ks3_price_'+sym,JSON.stringify(priceData[sym]));}catch(e){}
+    if(cb)cb(true);
+  }
+
+  fetch(proxy1)
     .then(function(r){return r.json();})
-    .then(function(d){
-      var res=d.chart.result[0];var meta=res.meta;
-      var price=meta.regularMarketPrice;
-      var prev=meta.chartPreviousClose||meta.previousClose;
-      var chg=price-prev;var pct=(chg/prev)*100;
-      var vol=meta.regularMarketVolume;
-      var q=((res.indicators||{}).quote||[{}])[0];
-      var closes=(q.close||[]).filter(function(x){return x!=null;});
-      var vols=(q.volume||[]).filter(function(x){return x!=null;});
-      var avgVol=vols.length>5?vols.slice(-20).reduce(function(a,b){return a+b;},0)/Math.min(vols.length,20):null;
-      priceData[sym]={price:price,chg:chg,pct:pct,vol:vol,volSpike:avgVol&&vol>avgVol*2,rsi:calcRSI(closes),ts:Date.now()};
-      try{localStorage.setItem('ks3_price_'+sym,JSON.stringify(priceData[sym]));}catch(e){}
-      if(cb)cb(true);
-    }).catch(function(){if(cb)cb(false);});
+    .then(function(d){parse(d);})
+    .catch(function(){
+      // Fallback to second proxy
+      fetch(proxy2)
+        .then(function(r){return r.json();})
+        .then(function(d){parse(d);})
+        .catch(function(){if(cb)cb(false);});
+    });
 }
 
 function loadMarketBar() {
   var pairs=[['QQQ','m-qqq','m-qqq-c'],['^GSPC','m-spy','m-spy-c'],['^VIX','m-vix','m-vix-c'],['CL=F','m-oil','m-oil-c']];
   pairs.forEach(function(pair){
-    fetch('https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(pair[0])+'?interval=1d&range=2d')
+    var yahooUrl='https://query1.finance.yahoo.com/v8/finance/chart/'+encodeURIComponent(pair[0])+'?interval=1d&range=2d';
+    var proxyUrl='https://api.allorigins.win/raw?url='+encodeURIComponent(yahooUrl);
+    fetch(proxyUrl)
       .then(function(r){return r.json();})
       .then(function(d){
-        var meta=d.chart.result[0].meta;
-        var price=meta.regularMarketPrice;var prev=meta.chartPreviousClose;
-        var chg=price-prev;var pct=(chg/prev)*100;
+        var res=d.chart&&d.chart.result&&d.chart.result[0];
+        if(!res)return;
+        var meta=res.meta;
+        var price=meta.regularMarketPrice||meta.chartPreviousClose;
+        var prev=meta.chartPreviousClose||price;
+        var chg=price-prev;var pct=prev?(chg/prev)*100:0;
         var ve=document.getElementById(pair[1]);var ce=document.getElementById(pair[2]);
         if(ve){ve.textContent='$'+price.toFixed(2);ve.className='mkt-val '+(chg>=0?'up':'dn');}
         if(ce){ce.textContent=(chg>=0?'+':'')+pct.toFixed(2)+'%';ce.className='mkt-chg '+(chg>=0?'up':'dn');}
@@ -1051,19 +1075,29 @@ function loadAnalysts() {
 }
 
 function loadAnalystForTicker(sym) {
-  fetch('https://query1.finance.yahoo.com/v11/finance/quoteSummary/'+encodeURIComponent(sym)+'?modules=recommendationTrend,financialData')
+  var yahooUrl='https://query1.finance.yahoo.com/v11/finance/quoteSummary/'+encodeURIComponent(sym)+'?modules=recommendationTrend,financialData';
+  var proxyUrl='https://api.allorigins.win/raw?url='+encodeURIComponent(yahooUrl);
+  fetch(proxyUrl)
     .then(function(r){return r.json();})
     .then(function(d){
       var result=d.quoteSummary&&d.quoteSummary.result&&d.quoteSummary.result[0];
-      if(!result) return;
+      if(!result){
+        analystData[sym]={error:true};
+        renderStocks();
+        return;
+      }
       var fin=result.financialData||{};
       var trend=result.recommendationTrend&&result.recommendationTrend.trend;
       var latest=trend&&trend[0];
-      if(!latest&&!fin.targetMeanPrice) return;
       var buyCount=(latest?(latest.strongBuy||0)+(latest.buy||0):0);
       var holdCount=(latest?latest.hold||0:0);
       var sellCount=(latest?(latest.sell||0)+(latest.strongSell||0):0);
       var total=buyCount+holdCount+sellCount;
+      if(!total&&!fin.targetMeanPrice){
+        analystData[sym]={error:true};
+        renderStocks();
+        return;
+      }
       var consensus='hold';
       if(buyCount>holdCount&&buyCount>sellCount) consensus='buy';
       else if(sellCount>buyCount&&sellCount>holdCount) consensus='sell';
@@ -1073,10 +1107,11 @@ function loadAnalystForTicker(sym) {
         lowTarget:fin.targetLowPrice&&fin.targetLowPrice.raw,
         highTarget:fin.targetHighPrice&&fin.targetHighPrice.raw
       };
-      // Re-render the card for this ticker only
-      var card=document.querySelector('[data-ticker="'+sym+'"]');
-      if(card) renderStocks();// lightweight re-render, could optimize per card
-    }).catch(function(){});
+      renderStocks();
+    }).catch(function(){
+      analystData[sym]={error:true};
+      renderStocks();
+    });
 }
 
 // ═══════════════════════════════════════════════
@@ -1086,12 +1121,23 @@ function loadNewsForTop() {
   STOCKS.slice(0,6).forEach(function(s){if(!newsCache[s.ticker])loadNewsForStock(s.ticker);});
 }
 function loadNewsForStock(ticker) {
-  var url='https://api.rss2json.com/v1/api.json?rss_url=https://feeds.finance.yahoo.com/rss/2.0/headline?s='+ticker+'&region=US&lang=en-US&count=3';
-  fetch(url).then(function(r){return r.json();}).then(function(d){
-    if(d.status==='ok'&&d.items){
-      newsCache[ticker]=d.items.slice(0,3).map(function(i){return{title:i.title,link:i.link,date:new Date(i.pubDate).toLocaleDateString()};});
-    }
-  }).catch(function(){});
+  // rss2json converts Yahoo Finance RSS to JSON with CORS headers
+  var rssUrl='https://feeds.finance.yahoo.com/rss/2.0/headline?s='+ticker+'&region=US&lang=en-US&count=5';
+  var url='https://api.rss2json.com/v1/api.json?rss_url='+encodeURIComponent(rssUrl);
+  fetch(url)
+    .then(function(r){return r.json();})
+    .then(function(d){
+      if(d.status==='ok'&&d.items&&d.items.length>0){
+        newsCache[ticker]=d.items.slice(0,4).map(function(i){
+          return{title:i.title,link:i.link,date:new Date(i.pubDate).toLocaleDateString()};
+        });
+      } else {
+        // Mark as checked but empty so we don't keep retrying
+        newsCache[ticker]=[];
+      }
+    }).catch(function(){
+      newsCache[ticker]=[];
+    });
 }
 
 // ═══════════════════════════════════════════════
@@ -1210,7 +1256,9 @@ function openModal(ticker) {
 
   // Analyst section
   var analystHtml='';
-  if(analyst){
+  if(analyst&&analyst.error){
+    analystHtml='<div class="m-sec">Wall Street Analysts</div><div style="color:var(--subtle);font-size:12px;padding:8px 0">No analyst data available for '+ticker+'. This is common for ETFs, leveraged funds, and smaller stocks.</div>';
+  } else if(analyst){
     var total=(analyst.buy||0)+(analyst.hold||0)+(analyst.sell||0);
     var bp=total?Math.round((analyst.buy||0)/total*100):0;
     var hp=total?Math.round((analyst.hold||0)/total*100):0;
@@ -1232,9 +1280,13 @@ function openModal(ticker) {
   if(settings.news){
     if(sn&&sn.length){
       newsHtml='<div class="m-sec">Latest News</div><div>'+sn.map(function(n){return'<div class="news-item"><div class="news-dot"></div><div><div class="news-head">'+n.title+'</div><div class="news-meta">'+n.date+'</div></div></div>';}).join('')+'</div>';
+    } else if(sn&&sn.length===0){
+      // Was fetched but empty
+      newsHtml='<div class="m-sec">Latest News</div><div style="padding:10px 0;color:var(--subtle);font-size:12px">No recent news found for '+ticker+'. Check Yahoo Finance or Google News for the latest.</div>';
     } else {
+      // Not fetched yet
       newsHtml='<div class="m-sec">Latest News</div><div style="color:var(--subtle);font-size:11px;font-family:var(--mono);padding:8px 0">Loading headlines...</div>';
-      if(!sn) loadNewsForStock(ticker);
+      loadNewsForStock(ticker);
     }
   }
 
