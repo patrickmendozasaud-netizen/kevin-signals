@@ -20,16 +20,15 @@ body {
 }
 
 /* SIDEBAR */
-.sidebar {
-  background:#020617;
-  border-right:1px solid #1e293b;
-  padding:16px;
-}
-
 .sidebar button {
   width:100%;
   margin-bottom:10px;
   background:#0f172a;
+  transition:0.2s;
+}
+
+.sidebar button:hover {
+  background:#1e293b;
 }
 
 .sidebar button.active {
@@ -156,20 +155,21 @@ button:hover { background:#475569; }
 function showTab(name){
   // hide all tabs
   document.querySelectorAll('.tab').forEach(t=>{
-    t.classList.remove('active');
+    t.style.display = 'none';
   });
 
-  // remove active from buttons
-  document.querySelectorAll('.tabs button').forEach(b=>{
+  // remove active from sidebar buttons
+  document.querySelectorAll('.sidebar button').forEach(b=>{
     b.classList.remove('active');
   });
 
   // show selected tab
-  document.getElementById('tab-'+name).classList.add('active');
+  const activeTab = document.getElementById('tab-'+name);
+  if(activeTab) activeTab.style.display = 'block';
 
   // highlight active button
-  document.querySelector(`.tabs button[onclick="showTab('${name}')"]`)
-    .classList.add('active');
+  const btn = document.querySelector(`.sidebar button[onclick="showTab('${name}')"]`);
+  if(btn) btn.classList.add('active');
 }
 const API_BASE = "https://kevin-signals.vercel.app/api";
 
@@ -228,14 +228,16 @@ function renderStocks(){
     const price = priceData[s.ticker]?.price || "—";
 
     return `
-      <div class="card">
-        <b>${s.ticker}</b> - $${price}
-        <div>${s.signal || ""}</div>
+      <div class="stock-card">
+        <div class="ticker">${s.ticker}</div>
+        <div class="price">${price}</div>
+        <div style="font-size:12px;opacity:0.7">
+          ${s.signal || ""}
+        </div>
       </div>
     `;
   }).join('');
 }
-
 // ---------------- PRICES ----------------
 async function fetchPrices(){
   if(!STOCKS.length) return;
