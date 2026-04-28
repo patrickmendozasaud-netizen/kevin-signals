@@ -27,9 +27,10 @@ button {
   color:#fff;
   cursor:pointer;
 }
-textarea {
+textarea, input {
   width:100%;
-  height:150px;
+  margin-top:6px;
+  margin-bottom:8px;
   background:#020617;
   color:#fff;
   border:1px solid #334155;
@@ -50,6 +51,7 @@ textarea {
   <h3>Import Report</h3>
   <textarea id="report"></textarea>
   <button onclick="parseReport()">Parse</button>
+  <div id="importStatus"></div>
 </div>
 
 <!-- STOCKS -->
@@ -76,30 +78,32 @@ textarea {
 </div>
 
 <script>
-const API = "https://kevin-signals.vercel.app/api";
+const API_BASE = "https://kevin-signals.vercel.app/api";
+
+let STOCKS = [];
+let priceData = {};
+let videoAnalysis = {};
+let reportMeta = {};
 
 async function parseReport(){
-  const text = document.getElementById("reportText").value;
+  const text = document.getElementById("report").value;
 
   if(!text){
     alert("Paste report first");
     return;
   }
 
-  document.getElementById("importStatus").innerHTML = "Parsing...";
+  document.getElementById("importStatus").innerText = "Parsing...";
 
   try{
     const res = await fetch(API_BASE + "/parse", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ text })
     });
 
     const data = await res.json();
 
-    // IMPORTANT: adjust based on your API response
     const parsed = typeof data.result === "string"
       ? JSON.parse(data.result)
       : data;
@@ -108,73 +112,35 @@ async function parseReport(){
 
     localStorage.setItem("ks3_stocks", JSON.stringify(STOCKS));
 
-    document.getElementById("importStatus").innerHTML = "✅ Parsed successfully";
+    document.getElementById("importStatus").innerText = "✅ Parsed";
 
     renderStocks();
+    fetchPrices();
 
   } catch(e){
     console.error(e);
-    document.getElementById("importStatus").innerHTML = "❌ Parse failed";
+    document.getElementById("importStatus").innerText = "❌ Failed";
   }
 }
 
-async function renderStocks(stocks){
+async function renderStocks(){
   const el = document.getElementById('stocks');
-  el.innerHTML = 'Loading prices...';
 
-  const res = await fetch(API+'/prices',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({tickers:stocks.map(s=>s.ticker)})
-  });
-
-  const prices = await res.json();
-
-  const p = priceData[s.ticker]?.price || "—";
-
-  el.innerHTML = stocks.map(s=>`
-    <div class="card">
-      <b>${s.ticker}</b> - $${prices[s.ticker] || '—'}
-      <div>${s.signal}</div>
-    </div>
-  `).join('');
-}
-
-async function analyzeVideo(videoId){
-  if(!videoId){
-    alert("Enter video ID");
+  if(!STOCKS.length){
+    el.innerHTML = "No stocks yet";
     return;
   }
 
-  try{
-    const res = await fetch(API_BASE + "/analyze-video", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ videoId })
-    });
+  el.innerHTML = STOCKS.map(s=>{
+    const price = priceData[s.ticker]?.price || "—";
 
-    const data = await res.json();
-
-    videoAnalysis[videoId] = data;
-
-    localStorage.setItem("ks3_videoAnalysis", JSON.stringify(videoAnalysis));
-
-    renderVideos();
-
-  } catch(e){
-    console.error(e);
-    alert("Video analysis failed");
-  }
-}
-
-async function loadEarnings(){
-  const res = await fetch(API+'/earnings');
-  const data = await res.json();
-
-  document.getElementById('earnings').innerHTML =
-    data.map(e=>`<div>${e.ticker}: ${e.summary}</div>`).join('');
+    return `
+      <div class="card">
+        <b>${s.ticker}</b> - $${price}
+        <div>${s.signal || ""}</div>
+      </div>
+    `;
+  }).join('');
 }
 
 async function fetchPrices(){
@@ -183,9 +149,7 @@ async function fetchPrices(){
   try{
     const res = await fetch(API_BASE + "/prices", {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         tickers: STOCKS.map(s => s.ticker)
       })
@@ -203,7 +167,35 @@ async function fetchPrices(){
     renderStocks();
 
   } catch(e){
-    console.error("Price fetch failed", e);
+    console.error("Price error", e);
+  }
+}
+
+async function analyzeVideo(){
+  const videoId = document.getElementById("videoId").value;
+
+  if(!videoId){
+    alert("Enter video ID");
+    return;
+  }
+
+  const resultEl = document.getElementById("videoResult");
+  resultEl.innerText = "Analyzing...";
+
+  try{
+    const res = await fetch(API_BASE + "/analyze-video", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId })
+    });
+
+    const data = await res.json();
+
+    resultEl.innerText = data.summary || "No summary";
+
+  } catch(e){
+    console.error(e);
+    resultEl.innerText = "❌ Failed";
   }
 }
 
@@ -212,46 +204,31 @@ async function loadEarnings(){
     const res = await fetch(API_BASE + "/earnings");
     const data = await res.json();
 
-    const container = document.getElementById("earningsList");
-
-    container.innerHTML = data.map(e => `
-      <div class="stock-card">
-        <div class="card-body">
-          <div class="ticker">${e.ticker}</div>
-          <div style="margin-top:6px;font-size:12px">
-            ${e.summary}
-          </div>
+    document.getElementById("earnings").innerHTML =
+      data.map(e=>`
+        <div class="card">
+          <b>${e.ticker}</b>
+          <div>${e.summary}</div>
         </div>
-      </div>
-    `).join("");
+      `).join("");
 
   } catch(e){
     console.error(e);
   }
 }
 
-async function saveCloud(){
-  await fetch(API_BASE + "/sync", {
-    method:"POST",
-    headers:{ "Content-Type":"application/json" },
-    body: JSON.stringify({
-      stocks: STOCKS,
-      meta: reportMeta
-    })
-  });
-}
+// auto refresh prices
+setInterval(fetchPrices, 30000);
 
-async function loadCloud(){
-  const res = await fetch(API_BASE + "/sync");
-  const data = await res.json();
-
-  if(data.stocks){
-    STOCKS = data.stocks;
-    reportMeta = data.meta;
-    renderAll();
+// load saved data on refresh
+window.onload = ()=>{
+  const saved = localStorage.getItem("ks3_stocks");
+  if(saved){
+    STOCKS = JSON.parse(saved);
+    renderStocks();
+    fetchPrices();
   }
-}
-  setInterval(fetchPrices, 30000);
+};
 </script>
 
 </body>
