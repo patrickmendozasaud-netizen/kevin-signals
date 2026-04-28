@@ -9,72 +9,94 @@
 body {
   margin:0;
   font-family:Inter, sans-serif;
-  background:#0f172a;
-  color:#fff;
+  background:#020617;
+  color:#e2e8f0;
 }
 
-.container { padding:16px; }
+.container {
+  display:grid;
+  grid-template-columns: 250px 1fr;
+  height:100vh;
+}
 
+/* SIDEBAR */
+.sidebar {
+  background:#020617;
+  border-right:1px solid #1e293b;
+  padding:16px;
+}
+
+.sidebar button {
+  width:100%;
+  margin-bottom:10px;
+  background:#0f172a;
+}
+
+.sidebar button.active {
+  background:#3b82f6;
+}
+
+/* MAIN */
+.main {
+  padding:16px;
+  overflow:auto;
+}
+
+/* CARDS */
 .card {
-  background:#1e293b;
-  padding:14px;
-  border-radius:12px;
+  background:#0f172a;
+  padding:12px;
+  border-radius:10px;
   margin-bottom:10px;
 }
 
+/* STOCK GRID */
+.stock-grid {
+  display:grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px,1fr));
+  gap:10px;
+}
+
+.stock-card {
+  background:#0f172a;
+  padding:10px;
+  border-radius:10px;
+  border:1px solid #1e293b;
+}
+
+.ticker {
+  font-weight:bold;
+  font-size:16px;
+}
+
+.price {
+  font-size:14px;
+}
+
+.up { color:#22c55e; }
+.down { color:#ef4444; }
+
+/* INPUTS */
+textarea, input {
+  width:100%;
+  margin-top:8px;
+  margin-bottom:10px;
+  background:#020617;
+  color:#fff;
+  border:1px solid #1e293b;
+  border-radius:8px;
+  padding:10px;
+}
+
 button {
-  padding:10px 14px;
+  padding:10px;
   border:none;
   border-radius:8px;
   background:#334155;
   color:#fff;
   cursor:pointer;
-  transition:0.2s;
 }
-
-button:hover {
-  background:#475569;
-}
-
-button.active {
-  background:#3b82f6;
-}
-
-textarea, input {
-  width:100%;
-  margin-top:6px;
-  margin-bottom:8px;
-  background:#020617;
-  color:#fff;
-  border:1px solid #334155;
-  border-radius:8px;
-  padding:10px;
-}
-
-/* FIXED: tabs CSS now INSIDE style */
-.tabs {
-  display:flex;
-  gap:10px;
-  margin-bottom:12px;
-}
-
-.tabs button {
-  flex:1;
-}
-
-.tab {
-  display:none;
-  animation: fade 0.2s ease;
-}
-
-.tab.active {
-  display:block;
-}
-
-@keyframes fade {
-  from { opacity:0; transform:translateY(5px); }
-  to { opacity:1; transform:translateY(0); }
-}
+button:hover { background:#475569; }
 </style>
 </head>
 
