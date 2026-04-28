@@ -503,7 +503,9 @@ What gets extracted automatically:
     <div class="sg">
       <div class="sg-ttl">Report Info</div>
       <div class="srow"><div><div class="s-lbl">Cross-Device Sync</div><div class="s-sub">Auto-syncs report across all your devices</div></div><div class="toggle on" id="tg-sync"><div class="tknob"></div></div></div>
-      <div class="srow"><div><div class="s-lbl">Sync Code</div><div class="s-sub">Share this to sync on another device</div></div><div style="font-family:var(--mono);font-size:10px;color:var(--buy-lt);cursor:pointer" id="s-binId" onclick="copySyncCode()">—</div></div>
+      <div class="srow"><div><div class="s-lbl">📱 Sync to Phone</div><div class="s-sub">Scan QR with phone camera — no code needed</div></div><div style="font-size:12px;color:var(--buy-lt);cursor:pointer;font-weight:600" onclick="showQR()">Show QR →</div></div>
+      <div class="srow"><div><div class="s-lbl">🔗 Share Sync Link</div><div class="s-sub">Text/email this to any device — opens & syncs</div></div><div style="font-size:12px;color:var(--blue-lt);cursor:pointer;font-weight:600" onclick="shareSyncLink()">Share →</div></div>
+      <div class="srow"><div><div class="s-lbl">Sync Code</div><div class="s-sub">Tap to copy (manual paste fallback)</div></div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);cursor:pointer" id="s-binId" onclick="copySyncCode()">—</div></div>
       <div class="srow"><div><div class="s-lbl">Import Sync Code</div><div class="s-sub">Paste code from another device</div></div><div style="font-size:11px;color:var(--blue-lt);cursor:pointer" onclick="importSyncCode()">Paste →</div></div>
       <div class="srow"><div><div class="s-lbl">Last Report</div></div><div style="font-family:var(--mono);font-size:11px;color:var(--muted)" id="s-repDate">None</div></div>
       <div class="srow"><div><div class="s-lbl">Stocks Tracked</div></div><div style="font-family:var(--mono);color:var(--buy-lt);font-size:14px" id="s-stockCt">0</div></div>
@@ -575,27 +577,65 @@ function fetchWithProxy(url, parseFn, onOk, onErr, idx) {
 var JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
 var JSONBIN_KEY = '$2a$10$8K1p/a0dhrxSA/GjXhm/8.fTjAzrEjr3GqSGa0J2K6k7J9iNkLVYi';
 function getCloudBinId() { return localStorage.getItem('ks3_bin_id') || null; }
+function fetchTO(url, opts, ms){
+  ms = ms || 6000;
+  var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  if(ctrl){ opts = opts || {}; opts.signal = ctrl.signal; }
+  var to = setTimeout(function(){ if(ctrl) try{ctrl.abort();}catch(e){} }, ms);
+  return fetch(url, opts).finally(function(){ clearTimeout(to); });
+}
 function saveToCloud(data, cb) {
   var binId = getCloudBinId();
   var payload = JSON.stringify({stocks:data.stocks,meta:data.meta,ts:Date.now()});
   if (binId) {
-    fetch(JSONBIN_BASE+'/'+binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},body:payload})
+    fetchTO(JSONBIN_BASE+'/'+binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},body:payload},6000)
       .then(function(r){return r.json();}).then(function(){if(cb)cb(true,binId);}).catch(function(){if(cb)cb(false);});
   } else {
-    fetch(JSONBIN_BASE,{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Name':'kevin-signals','X-Bin-Private':'false'},body:payload})
-      .then(function(r){return r.json();}).then(function(d){if(d.metadata&&d.metadata.id){localStorage.setItem('ks3_bin_id',d.metadata.id);if(cb)cb(true,d.metadata.id);}}).catch(function(){if(cb)cb(false);});
+    fetchTO(JSONBIN_BASE,{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Name':'kevin-signals','X-Bin-Private':'false'},body:payload},8000)
+      .then(function(r){return r.json();}).then(function(d){if(d.metadata&&d.metadata.id){localStorage.setItem('ks3_bin_id',d.metadata.id);if(cb)cb(true,d.metadata.id);}else{if(cb)cb(false);}}).catch(function(){if(cb)cb(false);});
   }
 }
 function loadFromCloud(cb) {
   var binId = getCloudBinId();
   if (!binId) { if(cb) cb(null); return; }
-  fetch(JSONBIN_BASE+'/'+binId+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY}})
+  fetchTO(JSONBIN_BASE+'/'+binId+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY}},6000)
     .then(function(r){return r.json();}).then(function(d){if(d.record){if(cb)cb(d.record);}else{if(cb)cb(null);}}).catch(function(){if(cb)cb(null);});
 }
-function showSyncStatus(msg, ok) {
+var _syncFadeT = null;
+function showSyncStatus(msg, ok, autohide) {
   var el = document.getElementById('syncStatus');
   if (!el) return;
   el.textContent = msg; el.style.color = ok ? 'var(--buy-lt)' : 'var(--muted)';
+  if(_syncFadeT){ clearTimeout(_syncFadeT); _syncFadeT=null; }
+  if(autohide!==false && ok){
+    _syncFadeT = setTimeout(function(){ if(el.textContent===msg) el.textContent='Cloud sync ready'; }, 2500);
+  }
+}
+function syncShareUrl(){
+  var binId = getCloudBinId(); if(!binId) return null;
+  var u = location.origin + location.pathname + '?sync=' + encodeURIComponent(binId);
+  return u;
+}
+function shareSyncLink(){
+  var url = syncShareUrl();
+  if(!url){ alert('No sync link yet — import a report first to create your cloud bin.'); return; }
+  if(navigator.share){
+    navigator.share({title:'Kevin Signals Sync', text:'Open this on your phone to sync', url:url}).catch(function(){});
+  } else if(navigator.clipboard){
+    navigator.clipboard.writeText(url).then(function(){alert('Sync link copied!\n\nOpen it on your phone to auto-sync — no code needed.');});
+  } else {
+    prompt('Copy this sync link & open on your phone:', url);
+  }
+}
+function showQR(){
+  var url = syncShareUrl();
+  if(!url){ alert('No sync link yet — import a report first.'); return; }
+  var modal = document.getElementById('modalOverlay');
+  var body = document.getElementById('modalContent');
+  if(!modal||!body) return;
+  var img = 'https://api.qrserver.com/v1/create-qr-code/?size=240x240&margin=10&data=' + encodeURIComponent(url);
+  body.innerHTML = '<div style="text-align:center;padding:18px"><div style="font-weight:700;margin-bottom:10px;font-size:15px">Scan on your phone</div><img src="'+img+'" alt="Sync QR" style="border-radius:10px;background:#fff;padding:6px" width="240" height="240"><div style="font-size:10px;color:var(--muted);margin-top:12px;word-break:break-all;font-family:var(--mono)">'+url+'</div><div style="font-size:11px;color:var(--muted);margin-top:10px;line-height:1.5">Open Camera on phone → point at code → tap link.<br>Phone auto-syncs. No code to type.</div><div style="margin-top:14px"><button onclick="document.getElementById(\'modalOverlay\').classList.remove(\'open\')" style="background:var(--blue-dim);color:var(--blue-lt);border:none;padding:8px 22px;border-radius:8px;font-weight:600;font-size:13px;cursor:pointer">Close</button></div></div>';
+  modal.classList.add('open');
 }
 
 try { var _s=localStorage.getItem('ks3_stocks'); if(_s) STOCKS=JSON.parse(_s); } catch(e){}
@@ -1618,10 +1658,25 @@ document.addEventListener('DOMContentLoaded',function(){
   try{renderSignals();}catch(e){console.warn(e);}
   try{updateSettings();}catch(e){console.warn(e);}
   try{showInstall();}catch(e){console.warn(e);}
+  // Auto-import via ?sync=BINID URL param (QR code / shared link flow)
+  try{
+    var qs = new URLSearchParams(location.search);
+    var qSync = qs.get('sync');
+    if(qSync && qSync.length > 8){
+      localStorage.setItem('ks3_bin_id', qSync);
+      try{ history.replaceState(null,'',location.pathname); }catch(e){}
+      showSyncStatus('☁ Pairing with cloud...', false);
+    }
+  }catch(e){}
+
+  // Render local data IMMEDIATELY — never block on cloud
+  if(STOCKS.length){ startAutoRefresh(); }
+  else { var txt=document.getElementById('abarTxt'); if(txt)txt.textContent='Import a report to start live prices'; var fill=document.getElementById('abarFill'); if(fill)fill.style.width='0%'; }
+
+  // Cloud sync runs in background — updates only if newer than local
   var binId = getCloudBinId();
   if (binId) {
-    var abarTxt = document.getElementById('abarTxt');
-    if(abarTxt) abarTxt.textContent = 'Syncing from cloud...';
+    showSyncStatus('☁ Checking cloud...', false, false);
     loadFromCloud(function(data){
       if(data && data.stocks && data.stocks.length){
         var cloudTs = data.ts || 0; var localTs = 0;
@@ -1630,14 +1685,17 @@ document.addEventListener('DOMContentLoaded',function(){
           STOCKS = data.stocks;
           if(data.meta) reportMeta = data.meta;
           try{localStorage.setItem('ks3_stocks',JSON.stringify(STOCKS));localStorage.setItem('ks3_meta',JSON.stringify(reportMeta));}catch(e){}
-          renderBrief();renderStocks();updateSettings();
+          renderBrief();renderStocks();renderSignals();updateSettings();
+          if(STOCKS.length) startAutoRefresh();
+          showSyncStatus('☁ Synced — '+STOCKS.length+' stocks', true);
+        } else {
+          showSyncStatus('☁ Up to date', true);
         }
+      } else {
+        showSyncStatus('Cloud sync ready', false);
       }
-      if(STOCKS.length){ startAutoRefresh(); }
-      else { var txt=document.getElementById('abarTxt'); if(txt)txt.textContent='Import a report to start live prices'; var fill=document.getElementById('abarFill'); if(fill)fill.style.width='0%'; }
     });
-  } else if(STOCKS.length){ startAutoRefresh(); }
-  else { var txt=document.getElementById('abarTxt'); if(txt)txt.textContent='Import a report to start live prices'; var fill=document.getElementById('abarFill'); if(fill)fill.style.width='0%'; }
+  }
 });
 </script>
 </body>
