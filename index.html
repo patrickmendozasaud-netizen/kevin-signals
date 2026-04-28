@@ -12,21 +12,34 @@ body {
   background:#0f172a;
   color:#fff;
 }
+
 .container { padding:16px; }
+
 .card {
   background:#1e293b;
   padding:14px;
   border-radius:12px;
   margin-bottom:10px;
 }
+
 button {
   padding:10px 14px;
   border:none;
   border-radius:8px;
-  background:#3b82f6;
+  background:#334155;
   color:#fff;
   cursor:pointer;
+  transition:0.2s;
 }
+
+button:hover {
+  background:#475569;
+}
+
+button.active {
+  background:#3b82f6;
+}
+
 textarea, input {
   width:100%;
   margin-top:6px;
@@ -37,6 +50,31 @@ textarea, input {
   border-radius:8px;
   padding:10px;
 }
+
+/* FIXED: tabs CSS now INSIDE style */
+.tabs {
+  display:flex;
+  gap:10px;
+  margin-bottom:12px;
+}
+
+.tabs button {
+  flex:1;
+}
+
+.tab {
+  display:none;
+  animation: fade 0.2s ease;
+}
+
+.tab.active {
+  display:block;
+}
+
+@keyframes fade {
+  from { opacity:0; transform:translateY(5px); }
+  to { opacity:1; transform:translateY(0); }
+}
 </style>
 </head>
 
@@ -44,40 +82,74 @@ textarea, input {
 
 <div class="container">
 
-<h2>📊 Kevin Signals v3</h2>
+<h2>📊 Kevin Signals</h2>
+
+<div class="tabs">
+  <button onclick="showTab('import')" class="active">Import</button>
+  <button onclick="showTab('stocks')">Stocks</button>
+  <button onclick="showTab('videos')">Videos</button>
+  <button onclick="showTab('earnings')">Earnings</button>
+</div>
 
 <!-- IMPORT -->
-<div class="card">
-  <h3>Import Report</h3>
-  <textarea id="report"></textarea>
-  <button onclick="parseReport()">Parse</button>
-  <div id="importStatus"></div>
+<div id="tab-import" class="tab">
+  <div class="card">
+    <h3>Import Report</h3>
+    <textarea id="report"></textarea>
+    <button onclick="parseReport()">Parse</button>
+    <div id="importStatus"></div>
+  </div>
 </div>
 
 <!-- STOCKS -->
-<div class="card">
-  <h3>Stocks</h3>
-  <div id="stocks"></div>
+<div id="tab-stocks" class="tab" style="display:none;">
+  <div class="card">
+    <h3>Stocks</h3>
+    <div id="stocks"></div>
+  </div>
 </div>
 
 <!-- VIDEOS -->
-<div class="card">
-  <h3>Video AI</h3>
-  <input id="videoId" placeholder="YouTube Video ID"/>
-  <button onclick="analyzeVideo()">Analyze</button>
-  <div id="videoResult"></div>
+<div id="tab-videos" class="tab" style="display:none;">
+  <div class="card">
+    <h3>Video AI</h3>
+    <input id="videoId" placeholder="YouTube Video ID"/>
+    <button onclick="analyzeVideo()">Analyze</button>
+    <div id="videoResult"></div>
+  </div>
 </div>
 
 <!-- EARNINGS -->
-<div class="card">
-  <h3>Earnings</h3>
-  <button onclick="loadEarnings()">Load Earnings</button>
-  <div id="earnings"></div>
+<div id="tab-earnings" class="tab" style="display:none;">
+  <div class="card">
+    <h3>Earnings</h3>
+    <button onclick="loadEarnings()">Load</button>
+    <div id="earnings"></div>
+  </div>
 </div>
 
 </div>
 
 <script>
+
+function showTab(name){
+  // hide all tabs
+  document.querySelectorAll('.tab').forEach(t=>{
+    t.classList.remove('active');
+  });
+
+  // remove active from buttons
+  document.querySelectorAll('.tabs button').forEach(b=>{
+    b.classList.remove('active');
+  });
+
+  // show selected tab
+  document.getElementById('tab-'+name).classList.add('active');
+
+  // highlight active button
+  document.querySelector(`.tabs button[onclick="showTab('${name}')"]`)
+    .classList.add('active');
+}
 const API_BASE = "https://kevin-signals.vercel.app/api";
 
 let STOCKS = [];
@@ -224,6 +296,7 @@ async function loadEarnings(){
 setInterval(fetchPrices, 30000);
 
 window.onload = ()=>{
+  showTab('import');
   const saved = localStorage.getItem("ks3_stocks");
   if(saved){
     STOCKS = JSON.parse(saved);
