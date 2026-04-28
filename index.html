@@ -554,29 +554,51 @@ var KEVIN_CHANNEL_ID = 'UCUvvj5lwue7PspotMDjk5UA'; // Meet Kevin
 var kevinVideos = [];
 var videoAnalysis = {}; // videoId -> {summary, tickers}
 
-// CORS proxies (used for Yahoo Finance, YouTube transcripts, etc.)
+// CORS proxies — different services prefer different proxies for speed/reliability
 var PROXIES = [
   function(u){return 'https://api.allorigins.win/raw?url='+encodeURIComponent(u);},
   function(u){return 'https://corsproxy.io/?'+encodeURIComponent(u);},
-  function(u){return 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u);}
+  function(u){return 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u);},
+  function(u){return 'https://api.cors.lol/?url='+encodeURIComponent(u);}
+];
+// YouTube-specific proxy order — cors.lol works best for youtube.com
+var YT_PROXIES = [
+  function(u){return 'https://api.cors.lol/?url='+encodeURIComponent(u);},
+  function(u){return 'https://api.codetabs.com/v1/proxy?quest='+encodeURIComponent(u);},
+  function(u){return 'https://api.allorigins.win/raw?url='+encodeURIComponent(u);},
+  function(u){return 'https://corsproxy.io/?'+encodeURIComponent(u);}
 ];
 
-function fetchWithProxy(url, parseFn, onOk, onErr, idx) {
+function _fetchProxyList(list, url, parseFn, onOk, onErr, idx) {
   idx = idx || 0;
-  if (idx >= PROXIES.length) { if(onErr) onErr(); return; }
-  fetch(PROXIES[idx](url))
+  if (idx >= list.length) { if(onErr) onErr(); return; }
+  var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
+  var to = setTimeout(function(){ if(ctrl) try{ctrl.abort();}catch(e){} }, 7000);
+  fetch(list[idx](url), ctrl ? {signal:ctrl.signal} : undefined)
     .then(function(r){ return r.text(); })
     .then(function(t){
+      clearTimeout(to);
+      // Detect proxy rate-limit/error pages and skip to next
+      if(!t || /rate limit|too many requests|forbidden/i.test(t.slice(0,200))) {
+        return _fetchProxyList(list, url, parseFn, onOk, onErr, idx+1);
+      }
       try { var d = parseFn === 'json' ? JSON.parse(t) : t; onOk(d); }
-      catch(e){ fetchWithProxy(url, parseFn, onOk, onErr, idx+1); }
+      catch(e){ _fetchProxyList(list, url, parseFn, onOk, onErr, idx+1); }
     })
-    .catch(function(){ fetchWithProxy(url, parseFn, onOk, onErr, idx+1); });
+    .catch(function(){ clearTimeout(to); _fetchProxyList(list, url, parseFn, onOk, onErr, idx+1); });
+}
+function fetchWithProxy(url, parseFn, onOk, onErr) {
+  _fetchProxyList(PROXIES, url, parseFn, onOk, onErr, 0);
+}
+function fetchYouTube(url, parseFn, onOk, onErr) {
+  _fetchProxyList(YT_PROXIES, url, parseFn, onOk, onErr, 0);
 }
 
-// ═══ CLOUD SYNC (JSONBin.io) ═══
-var JSONBIN_BASE = 'https://api.jsonbin.io/v3/b';
-var JSONBIN_KEY = '$2a$10$8K1p/a0dhrxSA/GjXhm/8.fTjAzrEjr3GqSGa0J2K6k7J9iNkLVYi';
-function getCloudBinId() { return localStorage.getItem('ks3_bin_id') || null; }
+// ═══ CLOUD SYNC (jsonblob.com — no API key, full CORS, free) ═══
+var BLOB_BASE = 'https://jsonblob.com/api/jsonBlob';
+// Migrate away from old/broken JSONBin IDs (different format)
+try { if(localStorage.getItem('ks3_bin_id')) localStorage.removeItem('ks3_bin_id'); } catch(e){}
+function getCloudBinId() { return localStorage.getItem('ks3_blob_id') || null; }
 function fetchTO(url, opts, ms){
   ms = ms || 6000;
   var ctrl = (typeof AbortController!=='undefined') ? new AbortController() : null;
@@ -587,19 +609,35 @@ function fetchTO(url, opts, ms){
 function saveToCloud(data, cb) {
   var binId = getCloudBinId();
   var payload = JSON.stringify({stocks:data.stocks,meta:data.meta,ts:Date.now()});
+  var hdrs = {'Content-Type':'application/json','Accept':'application/json'};
   if (binId) {
-    fetchTO(JSONBIN_BASE+'/'+binId,{method:'PUT',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY},body:payload},6000)
-      .then(function(r){return r.json();}).then(function(){if(cb)cb(true,binId);}).catch(function(){if(cb)cb(false);});
+    fetchTO(BLOB_BASE+'/'+binId,{method:'PUT',headers:hdrs,body:payload},8000)
+      .then(function(r){
+        if(r.ok){ if(cb)cb(true,binId); return; }
+        // Bin missing/expired → fall through and create a new one
+        if(r.status===404){ localStorage.removeItem('ks3_blob_id'); saveToCloud(data, cb); return; }
+        if(cb)cb(false);
+      })
+      .catch(function(){if(cb)cb(false);});
   } else {
-    fetchTO(JSONBIN_BASE,{method:'POST',headers:{'Content-Type':'application/json','X-Master-Key':JSONBIN_KEY,'X-Bin-Name':'kevin-signals','X-Bin-Private':'false'},body:payload},8000)
-      .then(function(r){return r.json();}).then(function(d){if(d.metadata&&d.metadata.id){localStorage.setItem('ks3_bin_id',d.metadata.id);if(cb)cb(true,d.metadata.id);}else{if(cb)cb(false);}}).catch(function(){if(cb)cb(false);});
+    fetchTO(BLOB_BASE,{method:'POST',headers:hdrs,body:payload},8000)
+      .then(function(r){
+        if(!r.ok){ if(cb)cb(false); return; }
+        var loc = r.headers.get('location') || r.headers.get('x-jsonblob-id') || '';
+        var id = loc.split('/').pop();
+        if(id && id.length > 8){ localStorage.setItem('ks3_blob_id',id); if(cb)cb(true,id); }
+        else if(cb)cb(false);
+      })
+      .catch(function(){if(cb)cb(false);});
   }
 }
 function loadFromCloud(cb) {
   var binId = getCloudBinId();
   if (!binId) { if(cb) cb(null); return; }
-  fetchTO(JSONBIN_BASE+'/'+binId+'/latest',{headers:{'X-Master-Key':JSONBIN_KEY}},6000)
-    .then(function(r){return r.json();}).then(function(d){if(d.record){if(cb)cb(d.record);}else{if(cb)cb(null);}}).catch(function(){if(cb)cb(null);});
+  fetchTO(BLOB_BASE+'/'+binId,{method:'GET',headers:{'Accept':'application/json'}},6000)
+    .then(function(r){ if(!r.ok) throw new Error('not ok'); return r.json(); })
+    .then(function(d){ if(cb) cb(d); })
+    .catch(function(){ if(cb) cb(null); });
 }
 var _syncFadeT = null;
 function showSyncStatus(msg, ok, autohide) {
@@ -1411,23 +1449,66 @@ function analyzeVideo(vid, card) {
   });
 }
 
+function cleanCaptionText(xml){
+  return xml
+    .replace(/<text[^>]*>/g,' ').replace(/<\/text>/g,' ')
+    .replace(/<[^>]+>/g,' ')
+    .replace(/&amp;#39;/g,"'").replace(/&amp;quot;/g,'"').replace(/&amp;/g,'&')
+    .replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/&apos;/g,"'")
+    .replace(/&lt;/g,'<').replace(/&gt;/g,'>').replace(/&nbsp;/g,' ')
+    .replace(/\s+/g,' ').trim();
+}
 function fetchTranscript(vid, cb) {
-  // Try a couple of public transcript endpoints via proxy
-  var tries = [
-    'https://youtubetranscript.com/?server_vid2='+vid,
-    'https://youtubetranscript.com/?server_vid='+vid,
-    'https://yt.lemnoslife.com/videos?part=captions&id='+vid
-  ];
-  function tryNext(i){
-    if(i>=tries.length){cb(null,false);return;}
-    fetchWithProxy(tries[i],'text',function(t){
-      // youtubetranscript.com returns XML <transcript><text start="..">..</text>...
-      var clean = t.replace(/<text[^>]*>/g,' ').replace(/<\/text>/g,' ').replace(/<[^>]+>/g,' ').replace(/&amp;#39;/g,"'").replace(/&amp;quot;/g,'"').replace(/&amp;/g,'&').replace(/&#39;/g,"'").replace(/&quot;/g,'"').replace(/\s+/g,' ').trim();
-      if(clean.length>200) cb(clean,true);
-      else tryNext(i+1);
-    },function(){tryNext(i+1);});
+  // Strategy 1: Scrape the actual YouTube watch page → extract captionTracks → fetch caption XML.
+  // This is the same path the YouTube site uses, so it's the most reliable.
+  var watchUrl = 'https://www.youtube.com/watch?v='+vid+'&hl=en';
+  fetchYouTube(watchUrl,'text',function(html){
+    try {
+      var m = html.match(/"captionTracks":(\[[^\]]*\])/);
+      if(!m){ tryFallbacks(); return; }
+      var tracksRaw = m[1];
+      var urls = [];
+      var re = /"baseUrl":"([^"]+)"[\s\S]*?"languageCode":"([^"]+)"/g;
+      var mt;
+      while((mt = re.exec(tracksRaw)) !== null){
+        urls.push({u: mt[1].replace(/\\u0026/g,'&').replace(/\\\//g,'/'), lang: mt[2]});
+      }
+      // Also try reversed order
+      if(!urls.length){
+        var re2 = /"languageCode":"([^"]+)"[\s\S]*?"baseUrl":"([^"]+)"/g;
+        while((mt = re2.exec(tracksRaw)) !== null){
+          urls.push({u: mt[2].replace(/\\u0026/g,'&').replace(/\\\//g,'/'), lang: mt[1]});
+        }
+      }
+      if(!urls.length){ tryFallbacks(); return; }
+      // Prefer English (manual then auto-generated), else first available
+      var pick = urls.filter(function(x){return /^en/i.test(x.lang);})[0] || urls[0];
+      fetchYouTube(pick.u, 'text', function(xml){
+        var clean = cleanCaptionText(xml);
+        if(clean.length > 200) cb(clean, true);
+        else tryFallbacks();
+      }, function(){ tryFallbacks(); });
+    } catch(e){ tryFallbacks(); }
+  }, function(){ tryFallbacks(); });
+
+  // Strategy 2: Public transcript API endpoints + YouTube timedtext fallback
+  function tryFallbacks(){
+    var tries = [
+      'https://youtubetranscript.com/?server_vid2='+vid,
+      'https://youtubetranscript.com/?server_vid='+vid,
+      'https://www.youtube.com/api/timedtext?v='+vid+'&lang=en',
+      'https://www.youtube.com/api/timedtext?v='+vid+'&lang=en&kind=asr'
+    ];
+    function next(i){
+      if(i>=tries.length){ cb(null,false); return; }
+      fetchYouTube(tries[i],'text',function(t){
+        var clean = cleanCaptionText(t);
+        if(clean.length > 200) cb(clean, true);
+        else next(i+1);
+      }, function(){ next(i+1); });
+    }
+    next(0);
   }
-  tryNext(0);
 }
 
 function runVideoAi(vid, text, card) {
