@@ -76,21 +76,46 @@ textarea {
 </div>
 
 <script>
-const API = "https://YOUR_BACKEND_URL/api";
+const API = "https://kevin-signals.vercel.app/api";
 
 async function parseReport(){
-  const text = document.getElementById('report').value;
+  const text = document.getElementById("reportText").value;
 
-  const res = await fetch(API+'/parse',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({text})
-  });
+  if(!text){
+    alert("Paste report first");
+    return;
+  }
 
-  const data = await res.json();
+  document.getElementById("importStatus").innerHTML = "Parsing...";
 
-  localStorage.setItem('stocks', JSON.stringify(data.stocks));
-  renderStocks(data.stocks);
+  try{
+    const res = await fetch(API_BASE + "/parse", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ text })
+    });
+
+    const data = await res.json();
+
+    // IMPORTANT: adjust based on your API response
+    const parsed = typeof data.result === "string"
+      ? JSON.parse(data.result)
+      : data;
+
+    STOCKS = parsed.stocks || [];
+
+    localStorage.setItem("ks3_stocks", JSON.stringify(STOCKS));
+
+    document.getElementById("importStatus").innerHTML = "✅ Parsed successfully";
+
+    renderStocks();
+
+  } catch(e){
+    console.error(e);
+    document.getElementById("importStatus").innerHTML = "❌ Parse failed";
+  }
 }
 
 async function renderStocks(stocks){
@@ -105,6 +130,8 @@ async function renderStocks(stocks){
 
   const prices = await res.json();
 
+  const p = priceData[s.ticker]?.price || "—";
+
   el.innerHTML = stocks.map(s=>`
     <div class="card">
       <b>${s.ticker}</b> - $${prices[s.ticker] || '—'}
@@ -113,17 +140,33 @@ async function renderStocks(stocks){
   `).join('');
 }
 
-async function analyzeVideo(){
-  const id = document.getElementById('videoId').value;
+async function analyzeVideo(videoId){
+  if(!videoId){
+    alert("Enter video ID");
+    return;
+  }
 
-  const res = await fetch(API+'/analyze-video',{
-    method:'POST',
-    headers:{'Content-Type':'application/json'},
-    body:JSON.stringify({videoId:id})
-  });
+  try{
+    const res = await fetch(API_BASE + "/analyze-video", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ videoId })
+    });
 
-  const data = await res.json();
-  document.getElementById('videoResult').innerText = data.summary;
+    const data = await res.json();
+
+    videoAnalysis[videoId] = data;
+
+    localStorage.setItem("ks3_videoAnalysis", JSON.stringify(videoAnalysis));
+
+    renderVideos();
+
+  } catch(e){
+    console.error(e);
+    alert("Video analysis failed");
+  }
 }
 
 async function loadEarnings(){
@@ -133,6 +176,82 @@ async function loadEarnings(){
   document.getElementById('earnings').innerHTML =
     data.map(e=>`<div>${e.ticker}: ${e.summary}</div>`).join('');
 }
+
+async function fetchPrices(){
+  if(!STOCKS.length) return;
+
+  try{
+    const res = await fetch(API_BASE + "/prices", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        tickers: STOCKS.map(s => s.ticker)
+      })
+    });
+
+    const prices = await res.json();
+
+    for(let t in prices){
+      priceData[t] = {
+        price: prices[t],
+        ts: Date.now()
+      };
+    }
+
+    renderStocks();
+
+  } catch(e){
+    console.error("Price fetch failed", e);
+  }
+}
+
+async function loadEarnings(){
+  try{
+    const res = await fetch(API_BASE + "/earnings");
+    const data = await res.json();
+
+    const container = document.getElementById("earningsList");
+
+    container.innerHTML = data.map(e => `
+      <div class="stock-card">
+        <div class="card-body">
+          <div class="ticker">${e.ticker}</div>
+          <div style="margin-top:6px;font-size:12px">
+            ${e.summary}
+          </div>
+        </div>
+      </div>
+    `).join("");
+
+  } catch(e){
+    console.error(e);
+  }
+}
+
+async function saveCloud(){
+  await fetch(API_BASE + "/sync", {
+    method:"POST",
+    headers:{ "Content-Type":"application/json" },
+    body: JSON.stringify({
+      stocks: STOCKS,
+      meta: reportMeta
+    })
+  });
+}
+
+async function loadCloud(){
+  const res = await fetch(API_BASE + "/sync");
+  const data = await res.json();
+
+  if(data.stocks){
+    STOCKS = data.stocks;
+    reportMeta = data.meta;
+    renderAll();
+  }
+}
+  setInterval(fetchPrices, 30000);
 </script>
 
 </body>
