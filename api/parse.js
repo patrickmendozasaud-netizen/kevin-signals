@@ -14,14 +14,20 @@ export default async function handler(req, res) {
         {
           role: "user",
           content: `
-Extract stock tickers and signals.
+Extract ONLY valid stock ticker symbols from the text.
 
-Return ONLY valid JSON. No explanation.
+Rules:
+- Tickers are 1–5 uppercase letters (e.g. AAPL, NVDA, TSLA)
+- Ignore common English words (TODAY, OPEN, VERY, etc.)
+- Ignore duplicates
+- Ignore emojis and formatting
+- Include tickers mentioned anywhere (earnings, trades, lists)
 
-Format:
+Return ONLY valid JSON:
 {
   "stocks": [
-    { "ticker": "AAPL", "signal": "bullish" }
+    { "ticker": "AAPL" },
+    { "ticker": "NVDA" }
   ]
 }
 
