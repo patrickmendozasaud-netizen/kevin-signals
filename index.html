@@ -104,14 +104,17 @@ button:hover { background:#475569; }
 
 <div class="container">
 
-<h2>📊 Kevin Signals</h2>
-
-<div class="tabs">
+<!-- SIDEBAR -->
+<div class="sidebar">
+  <h3>Kevin Signals</h3>
   <button onclick="showTab('import')" class="active">Import</button>
   <button onclick="showTab('stocks')">Stocks</button>
-  <button onclick="showTab('videos')">Videos</button>
+  <button onclick="showTab('videos')">Video AI</button>
   <button onclick="showTab('earnings')">Earnings</button>
 </div>
+
+<!-- MAIN -->
+<div class="main">
 
 <!-- IMPORT -->
 <div id="tab-import" class="tab">
@@ -125,16 +128,12 @@ button:hover { background:#475569; }
 
 <!-- STOCKS -->
 <div id="tab-stocks" class="tab" style="display:none;">
-  <div class="card">
-    <h3>Stocks</h3>
-    <div id="stocks"></div>
-  </div>
+  <div class="stock-grid" id="stocks"></div>
 </div>
 
 <!-- VIDEOS -->
 <div id="tab-videos" class="tab" style="display:none;">
   <div class="card">
-    <h3>Video AI</h3>
     <input id="videoId" placeholder="YouTube Video ID"/>
     <button onclick="analyzeVideo()">Analyze</button>
     <div id="videoResult"></div>
