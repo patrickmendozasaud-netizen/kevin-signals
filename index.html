@@ -7,8 +7,11 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Kevin Signals">
 <meta name="theme-color" content="#0f172a">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta http-equiv="Pragma" content="no-cache">
+<meta http-equiv="Expires" content="0">
 <link rel="manifest" href="manifest.json">
-<title>Kevin Signals</title>
+<title>Kevin Signals v2.2</title>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -344,7 +347,7 @@ body{font-family:var(--sans);background:var(--bg);color:var(--text);min-height:1
 <div class="topbar">
   <div class="logo">
     <div class="logo-mark">KS</div>
-    <div><div class="logo-name">Kevin Signals</div><div class="logo-tag">Alpha Report Tracker</div></div>
+    <div><div class="logo-name">Kevin Signals <span style="font-size:9px;color:var(--buy-lt);background:var(--buy-dim);padding:2px 6px;border-radius:8px;font-weight:700;vertical-align:middle">v2.2</span></div><div class="logo-tag">Alpha Report Tracker</div></div>
   </div>
   <div class="topbar-right">
     <div class="tbtn" id="importNavBtn">📥</div>
@@ -503,6 +506,7 @@ What gets extracted automatically:
     <div class="sg">
       <div class="sg-ttl">Report Info</div>
       <div class="srow"><div><div class="s-lbl">Cross-Device Sync</div><div class="s-sub">Auto-syncs report across all your devices</div></div><div class="toggle on" id="tg-sync"><div class="tknob"></div></div></div>
+      <div class="srow"><div><div class="s-lbl">☁ Test Cloud Sync</div><div class="s-sub">Manually push current data to the cloud</div></div><div style="font-size:12px;color:var(--watch-lt);cursor:pointer;font-weight:600" onclick="testCloudSync()">Run Test →</div></div>
       <div class="srow"><div><div class="s-lbl">📱 Sync to Phone</div><div class="s-sub">Scan QR with phone camera — no code needed</div></div><div style="font-size:12px;color:var(--buy-lt);cursor:pointer;font-weight:600" onclick="showQR()">Show QR →</div></div>
       <div class="srow"><div><div class="s-lbl">🔗 Share Sync Link</div><div class="s-sub">Text/email this to any device — opens & syncs</div></div><div style="font-size:12px;color:var(--blue-lt);cursor:pointer;font-weight:600" onclick="shareSyncLink()">Share →</div></div>
       <div class="srow"><div><div class="s-lbl">Sync Code</div><div class="s-sub">Tap to copy (manual paste fallback)</div></div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);cursor:pointer" id="s-binId" onclick="copySyncCode()">—</div></div>
@@ -614,21 +618,22 @@ function saveToCloud(data, cb) {
     fetchTO(BLOB_BASE+'/'+binId,{method:'PUT',headers:hdrs,body:payload},8000)
       .then(function(r){
         if(r.ok){ if(cb)cb(true,binId); return; }
-        // Bin missing/expired → fall through and create a new one
-        if(r.status===404){ localStorage.removeItem('ks3_blob_id'); saveToCloud(data, cb); return; }
-        if(cb)cb(false);
+        if(r.status===404){ console.warn('[sync] PUT 404 — bin gone, creating new'); localStorage.removeItem('ks3_blob_id'); saveToCloud(data, cb); return; }
+        console.error('[sync] PUT failed status', r.status);
+        if(cb)cb(false, null, 'HTTP '+r.status);
       })
-      .catch(function(){if(cb)cb(false);});
+      .catch(function(err){ console.error('[sync] PUT error', err); if(cb)cb(false, null, (err&&err.message)||'network'); });
   } else {
-    fetchTO(BLOB_BASE,{method:'POST',headers:hdrs,body:payload},8000)
+    fetchTO(BLOB_BASE,{method:'POST',headers:hdrs,body:payload},10000)
       .then(function(r){
-        if(!r.ok){ if(cb)cb(false); return; }
+        if(!r.ok){ console.error('[sync] POST status', r.status); if(cb)cb(false, null, 'HTTP '+r.status); return; }
         var loc = r.headers.get('location') || r.headers.get('x-jsonblob-id') || '';
+        console.log('[sync] POST ok, location:', loc);
         var id = loc.split('/').pop();
         if(id && id.length > 8){ localStorage.setItem('ks3_blob_id',id); if(cb)cb(true,id); }
-        else if(cb)cb(false);
+        else { console.error('[sync] No location header — CORS may be blocking response headers'); if(cb)cb(false, null, 'no-location-header'); }
       })
-      .catch(function(){if(cb)cb(false);});
+      .catch(function(err){ console.error('[sync] POST error', err); if(cb)cb(false, null, (err&&err.message)||'network'); });
   }
 }
 function loadFromCloud(cb) {
@@ -653,6 +658,31 @@ function syncShareUrl(){
   var binId = getCloudBinId(); if(!binId) return null;
   var u = location.origin + location.pathname + '?sync=' + encodeURIComponent(binId);
   return u;
+}
+function testCloudSync(){
+  var el = document.getElementById('syncStatus');
+  if(el){ el.textContent='☁ Testing cloud connection...'; el.style.color='var(--watch-lt)'; }
+  console.log('[sync-test] starting...');
+  saveToCloud({stocks: STOCKS||[], meta: reportMeta||{}}, function(ok, binId, err){
+    if(ok){
+      console.log('[sync-test] WRITE ok, id:', binId);
+      loadFromCloud(function(d){
+        if(d && d.stocks){
+          console.log('[sync-test] READ ok, got', d.stocks.length, 'stocks');
+          updateSettings();
+          alert('✅ Cloud sync working!\n\nWrote & read back '+(d.stocks.length||0)+' stocks.\nSync code: ...'+binId.slice(-6));
+          showSyncStatus('☁ Cloud sync OK', true);
+        } else {
+          alert('⚠ Wrote OK but read back failed.\nSync may be one-way blocked.');
+          showSyncStatus('Sync write ok, read failed', false);
+        }
+      });
+    } else {
+      console.error('[sync-test] FAILED', err);
+      alert('❌ Sync failed: '+(err||'unknown')+'\n\nOpen browser console (F12) for details.\nVersion: v2.2');
+      showSyncStatus('Sync test failed: '+(err||'unknown'), false, false);
+    }
+  });
 }
 function shareSyncLink(){
   var url = syncShareUrl();
@@ -849,10 +879,19 @@ function applyReport(parsed) {
   renderBrief();renderStocks();updateSettings();
   doRefresh(true);
   if(settings.sync !== false) {
-    showSyncStatus('☁ Syncing to cloud...', false);
-    saveToCloud({stocks:STOCKS, meta:reportMeta}, function(ok, binId){
+    showSyncStatus('☁ Syncing to cloud...', false, false);
+    saveToCloud({stocks:STOCKS, meta:reportMeta}, function(ok, binId, err){
       if(ok) { showSyncStatus('☁ Synced! Code: '+binId.slice(-6), true); updateSettings(); }
-      else { showSyncStatus('Sync failed — saved locally only', false); }
+      else {
+        showSyncStatus('Sync failed ('+(err||'unknown')+') — saved locally', false);
+        // Retry once after 2s — first POST sometimes hits a cold proxy
+        setTimeout(function(){
+          saveToCloud({stocks:STOCKS, meta:reportMeta}, function(ok2, binId2, err2){
+            if(ok2){ showSyncStatus('☁ Synced! Code: '+binId2.slice(-6), true); updateSettings(); }
+            else { showSyncStatus('Sync still failing ('+(err2||'unknown')+') — local only. Check console.', false, false); }
+          });
+        }, 2000);
+      }
     });
   }
 }
