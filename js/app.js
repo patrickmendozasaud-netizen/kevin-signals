@@ -81,6 +81,27 @@ window.onload = async ()=>{
     }
   }
 
+  function tab(name){
+    document.querySelectorAll('.tab').forEach(t=>{
+      t.style.display = 'none';
+    });
+  
+    document.getElementById(name).style.display = 'block';
+  
+    document.querySelectorAll('.sidebar button').forEach(b=>{
+      b.classList.remove('active');
+    });
+  
+    document.querySelector(`.sidebar button[onclick="tab('${name}')"]`)
+      .classList.add('active');
+}
+
   renderStocks();
   renderPortfolio();
+
+  window.parse = parse;
+  window.tab = tab;
+  window.sortStocks = sortStocks;
+  window.video = video;
+  window.earnings = earnings;
 };
