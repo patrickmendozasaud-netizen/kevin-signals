@@ -146,28 +146,39 @@ renderPortfolio();
 
 // ---------- RENDER STOCKS ----------
 function render(){
-const p = prices[s.ticker]?.price ?? null;
-const prev = prices[s.ticker]?.prev ?? null;
+  const el = document.getElementById("stocksGrid");
 
-let change = 0;
+  if(!STOCKS.length){
+    el.innerHTML = "No stocks loaded";
+    return;
+  }
 
-if (p && prev) {
-  change = ((p - prev) / prev * 100).toFixed(2);
+  el.innerHTML = STOCKS.map(s=>{
+    const p = prices[s.ticker]?.price ?? null;
+    const prev = prices[s.ticker]?.prev ?? null;
+
+    let change = 0;
+
+    if (p && prev) {
+      change = ((p - prev) / prev * 100).toFixed(2);
+    }
+
+    const priceDisplay = p ? `$${p}` : "—";
+    const changeDisplay = p ? `(${change}%)` : "";
+
+    return `
+      <div class="card">
+        <b>${s.ticker}</b><br>
+        <span class="${change >= 0 ? 'up' : 'down'}">
+          ${priceDisplay} ${changeDisplay}
+        </span>
+        <br>
+        <button onclick="analyze('${s.ticker}',${p || 0})">AI Analyze</button>
+        <div id="ai-${s.ticker}" style="font-size:12px;margin-top:6px;"></div>
+      </div>
+    `;
+  }).join("");
 }
-
-const priceDisplay = p ? `$${p}` : "—";
-const changeDisplay = p ? `(${change}%)` : "";
-
-return `
-<div class="card">
-<b>${s.ticker}</b><br>
-<span class="${change >= 0 ? 'up' : 'down'}">
-  ${priceDisplay} ${changeDisplay}
-</span>
-<br>
-<button onclick="analyze('${s.ticker}',${p || 0})">AI Analyze</button>
-</div>
-`;
 
 // ---------- AI ANALYZE ----------
 async function analyze(ticker,price){
