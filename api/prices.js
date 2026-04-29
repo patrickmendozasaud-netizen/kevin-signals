@@ -1,17 +1,25 @@
-export default async function handler(req, res){
+export default async function handler(req, res) {
   const { tickers } = req.body;
 
-  let result = {};
+  try {
+    const query = tickers.join(",");
+    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${query}`;
 
-  await Promise.all(tickers.map(async t=>{
-    try{
-      const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/${t}?apikey=demo`);
-      const d = await r.json();
-      result[t] = d[0]?.price;
-    }catch(e){
-      result[t] = null;
-    }
-  }));
+    const r = await fetch(url);
+    const data = await r.json();
 
-  res.json(result);
+    const result = {};
+
+    data.quoteResponse.result.forEach(s => {
+      result[s.symbol] = {
+        price: s.regularMarketPrice,
+        prev: s.regularMarketPreviousClose
+      };
+    });
+
+    res.status(200).json(result);
+
+  } catch (e) {
+    res.status(500).json({ error: "Price fetch failed" });
+  }
 }
