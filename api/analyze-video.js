@@ -1,21 +1,36 @@
 import OpenAI from "openai";
+
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
-export default async function handler(req, res){
-  const { videoId } = req.body;
+export default async function handler(req, res) {
+  try {
+    const { videoId } = req.body;
 
-  const transcriptRes = await fetch(`https://youtubetranscript.com/?server_vid2=${videoId}`);
-  const transcript = await transcriptRes.json();
+    // ⚠️ Placeholder transcript (you replace later with real fetch)
+    const transcript = "Sample transcript from video " + videoId;
 
-  const text = transcript.map(t=>t.text).join(" ");
+    const completion = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [{
+        role: "user",
+        content: `
+Summarize this video and extract stock insights.
 
-  const ai = await openai.chat.completions.create({
-    model:"gpt-4o-mini",
-    messages:[{
-      role:"user",
-      content:`Summarize + extract stock calls:\n${text}`
-    }]
-  });
+Return JSON:
+{
+  "summary": "...",
+  "stocks": ["AAPL","NVDA"]
+}
 
-  res.json({summary: ai.choices[0].message.content});
+Transcript:
+${transcript}
+`
+      }]
+    });
+
+    res.json(JSON.parse(completion.choices[0].message.content));
+
+  } catch (e) {
+    res.status(500).json({ error: "Video analysis failed" });
+  }
 }
