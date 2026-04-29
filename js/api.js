@@ -38,6 +38,17 @@ async function postJSON(path, body) {
   catch (e) { throw new Error(`${path} returned non-JSON: ${e.message}`); }
 }
 
+async function getJSON(path) {
+  const r = await fetch(path);
+  if (!r.ok) {
+    let detail = '';
+    try { const b = await r.json(); detail = b.error || JSON.stringify(b); }
+    catch { detail = await r.text().catch(() => '(no body)'); }
+    throw new Error(`${path} returned ${r.status}: ${detail}`);
+  }
+  return r.json();
+}
+
 export async function fetchPrices(tickers) {
   const clean = filterTickers(tickers);
   if (!clean.length) {
@@ -45,14 +56,12 @@ export async function fetchPrices(tickers) {
   }
   const data = await postJSON('/api/prices', { tickers: clean });
   if (!data || typeof data !== 'object' || Array.isArray(data)) {
-    throw new Error(`Prices API returned unexpected shape.`);
+    throw new Error('Prices API returned unexpected shape.');
   }
   const returned = Object.keys(data);
   if (!returned.length) {
     throw new Error(`Prices API returned no recognised tickers. Sent: ${clean.join(', ')}`);
   }
-  const missing = clean.filter(t => !returned.includes(t));
-  if (missing.length) console.warn(`[fetchPrices] no data for: ${missing.join(', ')}`);
   return data;
 }
 
@@ -61,12 +70,18 @@ export async function analyzeStock(ticker, price) {
   return postJSON('/api/analyze-stock', { ticker, price: Number(price) || 0 });
 }
 
+export async function analyzeReport(text, tickers) {
+  return postJSON('/api/analyze-report', { text, tickers });
+}
+
 export async function analyzeVideo(videoId) {
   return postJSON('/api/analyze-video', { videoId });
 }
 
+export async function fetchVideos() {
+  return getJSON('/api/videos');
+}
+
 export async function fetchEarnings() {
-  const r = await fetch('/api/earnings');
-  if (!r.ok) throw new Error(`/api/earnings returned ${r.status}`);
-  return r.json();
+  return getJSON('/api/earnings');
 }
