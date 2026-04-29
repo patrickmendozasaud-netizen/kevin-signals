@@ -1,331 +1,257 @@
 <!DOCTYPE html>
-<html lang="en">
+
+<html>
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Kevin Signals v3</title>
+<title>Kevin Signals AI Dashboard</title>
 
 <style>
-body {
-  margin:0;
-  font-family:Inter, sans-serif;
-  background:#020617;
-  color:#e2e8f0;
-}
+body { margin:0; font-family:Inter; background:#020617; color:#fff; }
+.container { display:grid; grid-template-columns:220px 1fr; height:100vh; }
 
-.container {
-  display:grid;
-  grid-template-columns: 250px 1fr;
-  height:100vh;
-}
+.sidebar { padding:15px; border-right:1px solid #1e293b; }
+.sidebar button { width:100%; margin-bottom:8px; background:#0f172a; }
+.sidebar button.active { background:#3b82f6; }
 
-/* SIDEBAR */
-.sidebar button {
-  width:100%;
-  margin-bottom:10px;
-  background:#0f172a;
-  transition:0.2s;
-}
+.main { padding:15px; overflow:auto; }
 
-.sidebar button:hover {
-  background:#1e293b;
-}
+.grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:10px; }
 
-.sidebar button.active {
-  background:#3b82f6;
-}
-
-/* MAIN */
-.main {
-  padding:16px;
-  overflow:auto;
-}
-
-/* CARDS */
 .card {
   background:#0f172a;
-  padding:12px;
-  border-radius:10px;
-  margin-bottom:10px;
-}
-
-/* STOCK GRID */
-.stock-grid {
-  display:grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px,1fr));
-  gap:10px;
-}
-
-.stock-card {
-  background:#0f172a;
   padding:10px;
-  border-radius:10px;
+  border-radius:8px;
   border:1px solid #1e293b;
-}
-
-.ticker {
-  font-weight:bold;
-  font-size:16px;
-}
-
-.price {
-  font-size:14px;
 }
 
 .up { color:#22c55e; }
 .down { color:#ef4444; }
 
-/* INPUTS */
-textarea, input {
+textarea,input {
   width:100%;
-  margin-top:8px;
-  margin-bottom:10px;
+  margin:6px 0;
+  padding:8px;
   background:#020617;
   color:#fff;
   border:1px solid #1e293b;
-  border-radius:8px;
-  padding:10px;
 }
 
 button {
-  padding:10px;
+  padding:8px;
   border:none;
-  border-radius:8px;
-  background:#334155;
-  color:#fff;
+  border-radius:6px;
+  color:white;
   cursor:pointer;
+  background:#334155;
 }
 button:hover { background:#475569; }
 </style>
+
 </head>
 
 <body>
-
 <div class="container">
 
-<!-- SIDEBAR -->
 <div class="sidebar">
-  <h3>Kevin Signals</h3>
-  <button onclick="showTab('import')" class="active">Import</button>
-  <button onclick="showTab('stocks')">Stocks</button>
-  <button onclick="showTab('videos')">Video AI</button>
-  <button onclick="showTab('earnings')">Earnings</button>
+<button onclick="tab('import')" class="active">Import</button>
+<button onclick="tab('stocks')">Stocks</button>
+<button onclick="tab('portfolio')">AI Portfolio</button>
+<button onclick="tab('videos')">Videos</button>
+<button onclick="tab('earnings')">Earnings</button>
 </div>
 
-<!-- MAIN -->
 <div class="main">
 
-<!-- IMPORT -->
-<div id="tab-import" class="tab">
-  <div class="card">
-    <h3>Import Report</h3>
-    <textarea id="report"></textarea>
-    <button onclick="parseReport()">Parse</button>
-    <div id="importStatus"></div>
-  </div>
+<div id="import" class="tab">
+<textarea id="report"></textarea>
+<button onclick="parse()">Parse</button>
+<div id="status"></div>
 </div>
 
-<!-- STOCKS -->
-<div id="tab-stocks" class="tab" style="display:none;">
-  <div class="stock-grid" id="stocks"></div>
+<div id="stocks" class="tab" style="display:none;">
+<button onclick="sortStocks()">Sort by Movers</button>
+<div id="stocksGrid" class="grid"></div>
 </div>
 
-<!-- VIDEOS -->
-<div id="tab-videos" class="tab" style="display:none;">
-  <div class="card">
-    <input id="videoId" placeholder="YouTube Video ID"/>
-    <button onclick="analyzeVideo()">Analyze</button>
-    <div id="videoResult"></div>
-  </div>
+<div id="portfolio" class="tab" style="display:none;">
+<div id="portfolioGrid" class="grid"></div>
 </div>
 
-<!-- EARNINGS -->
-<div id="tab-earnings" class="tab" style="display:none;">
-  <div class="card">
-    <h3>Earnings</h3>
-    <button onclick="loadEarnings()">Load</button>
-    <div id="earnings"></div>
-  </div>
+<div id="videos" class="tab" style="display:none;">
+<input id="videoId" placeholder="YouTube ID">
+<button onclick="video()">Analyze</button>
+<div id="videoOut"></div>
 </div>
 
+<div id="earnings" class="tab" style="display:none;">
+<button onclick="earnings()">Load</button>
+<div id="earningsOut"></div>
+</div>
+
+</div>
 </div>
 
 <script>
+const API="/api";
 
-function showTab(name){
-  // hide all tabs
-  document.querySelectorAll('.tab').forEach(t=>{
-    t.style.display = 'none';
-  });
+let STOCKS=[];
+let prices={};
+let portfolio=JSON.parse(localStorage.getItem("portfolio")||"[]");
 
-  // remove active from sidebar buttons
-  document.querySelectorAll('.sidebar button').forEach(b=>{
-    b.classList.remove('active');
-  });
-
-  // show selected tab
-  const activeTab = document.getElementById('tab-'+name);
-  if(activeTab) activeTab.style.display = 'block';
-
-  // highlight active button
-  const btn = document.querySelector(`.sidebar button[onclick="showTab('${name}')"]`);
-  if(btn) btn.classList.add('active');
-}
-const API_BASE = "https://kevin-signals.vercel.app/api";
-
-let STOCKS = [];
-let priceData = {};
-
-// ---------------- PARSE ----------------
-async function parseReport(){
-  const text = document.getElementById("report").value;
-
-  if(!text){
-    alert("Paste report first");
-    return;
-  }
-
-  document.getElementById("importStatus").innerText = "Parsing...";
-
-  try{
-    const res = await fetch(API_BASE + "/parse", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text })
-    });
-
-    const parsed = await res.json();
-
-    if(!parsed || !parsed.stocks){
-      throw new Error("Invalid response");
-    }
-
-    STOCKS = parsed.stocks;
-
-    localStorage.setItem("ks3_stocks", JSON.stringify(STOCKS));
-
-    document.getElementById("importStatus").innerText = "✅ Parsed";
-
-    renderStocks();
-    fetchPrices();
-
-  } catch(e){
-    console.error(e);
-    document.getElementById("importStatus").innerText = "❌ " + e.message;
-  }
+// ---------- TAB ----------
+function tab(n){
+document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
+document.getElementById(n).style.display='block';
 }
 
-// ---------------- RENDER ----------------
-function renderStocks(){
-  const el = document.getElementById('stocks');
+// ---------- PARSE ----------
+async function parse(){
+const text=document.getElementById("report").value;
 
-  if(!STOCKS.length){
-    el.innerHTML = "No stocks yet";
-    return;
-  }
+const words=text.match(/\b[A-Z]{2,5}\b/g)||[];
 
-  el.innerHTML = STOCKS.map(s=>{
-    const price = priceData[s.ticker]?.price || "—";
+const blacklist=["OPEN","VERY","TODAY","EXPECT","WEEK","MONTH"];
+const unique=[...new Set(words)].filter(w=>!blacklist.includes(w));
 
-    return `
-      <div class="stock-card">
-        <div class="ticker">${s.ticker}</div>
-        <div class="price">${price}</div>
-        <div style="font-size:12px;opacity:0.7">
-          ${s.signal || ""}
-        </div>
-      </div>
-    `;
-  }).join('');
+STOCKS=unique.map(t=>({ticker:t}));
+
+localStorage.setItem("stocks",JSON.stringify(STOCKS));
+
+document.getElementById("status").innerText="✅ Parsed";
+
+render();
+fetchPrices();
 }
-// ---------------- PRICES ----------------
+
+// ---------- PRICES ----------
 async function fetchPrices(){
-  if(!STOCKS.length) return;
+if(!STOCKS.length) return;
 
-  try{
-    const res = await fetch(API_BASE + "/prices", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        tickers: STOCKS.map(s => s.ticker)
-      })
-    });
+const res=await fetch(API+"/prices",{
+method:"POST",
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({tickers:STOCKS.map(s=>s.ticker)})
+});
 
-    const prices = await res.json();
+prices=await res.json();
 
-    for(let t in prices){
-      priceData[t] = {
-        price: prices[t],
-        ts: Date.now()
-      };
-    }
-
-    renderStocks();
-
-  } catch(e){
-    console.error("Price error", e);
-  }
+render();
+renderPortfolio();
 }
 
-// ---------------- VIDEO ----------------
-async function analyzeVideo(){
-  const videoId = document.getElementById("videoId").value;
+// ---------- RENDER STOCKS ----------
+function render(){
+document.getElementById("stocksGrid").innerHTML=
+STOCKS.map(s=>{
+const p=prices[s.ticker]?.price||0;
+const prev=prices[s.ticker]?.prev||p;
+const ch=((p-prev)/prev*100).toFixed(2);
 
-  if(!videoId){
-    alert("Enter video ID");
-    return;
-  }
-
-  const resultEl = document.getElementById("videoResult");
-  resultEl.innerText = "Analyzing...";
-
-  try{
-    const res = await fetch(API_BASE + "/analyze-video", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ videoId })
-    });
-
-    const data = await res.json();
-
-    resultEl.innerText = data.summary || "No summary";
-
-  } catch(e){
-    console.error(e);
-    resultEl.innerText = "❌ Failed";
-  }
+return `<div class="card">
+<b>${s.ticker}</b><br>
+<span class="${ch>0?'up':'down'}">$${p} (${ch}%)</span><br>
+<button onclick="analyze('${s.ticker}',${p})">AI Analyze</button>
+<div id="ai-${s.ticker}" style="font-size:12px;margin-top:6px;"></div>
+</div>`;
+}).join("");
 }
 
-// ---------------- EARNINGS ----------------
-async function loadEarnings(){
-  try{
-    const res = await fetch(API_BASE + "/earnings");
-    const data = await res.json();
+// ---------- AI ANALYZE ----------
+async function analyze(ticker,price){
+const el=document.getElementById("ai-"+ticker);
+el.innerText="Analyzing...";
 
-    document.getElementById("earnings").innerHTML =
-      data.map(e=>`
-        <div class="card">
-          <b>${e.ticker}</b>
-          <div>${e.summary}</div>
-        </div>
-      `).join("");
+try{
+const res=await fetch(API+"/analyze-stock",{
+method:"POST",
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({ticker,price})
+});
 
-  } catch(e){
-    console.error(e);
-  }
+const d=await res.json();
+
+el.innerHTML=`
+<b>${d.decision}</b> (${d.confidence}%)
+<br>Entry: ${d.entry}
+<br>Target: ${d.target}
+<br>Stop: ${d.stop}
+`;
+
+if(d.decision==="BUY" && d.confidence>70){
+aiBuy(ticker,price);
 }
 
-// ---------------- INIT ----------------
-setInterval(fetchPrices, 30000);
+}catch(e){
+el.innerText="❌ AI error";
+}
+}
 
-window.onload = ()=>{
-  showTab('import');
-  const saved = localStorage.getItem("ks3_stocks");
-  if(saved){
-    STOCKS = JSON.parse(saved);
-    renderStocks();
-    fetchPrices();
-  }
+// ---------- AUTO BUY ----------
+function aiBuy(ticker,price){
+if(portfolio.find(p=>p.ticker===ticker)) return;
+
+portfolio.push({
+ticker,
+entry:price,
+time:Date.now()
+});
+
+localStorage.setItem("portfolio",JSON.stringify(portfolio));
+renderPortfolio();
+}
+
+// ---------- PORTFOLIO ----------
+function renderPortfolio(){
+document.getElementById("portfolioGrid").innerHTML=
+portfolio.map(p=>{
+const now=prices[p.ticker]?.price||p.entry;
+const pnl=((now-p.entry)/p.entry*100).toFixed(2);
+
+return `<div class="card">
+${p.ticker}<br>
+Entry: $${p.entry}<br>
+Now: $${now}<br>
+<span class="${pnl>0?'up':'down'}">${pnl}%</span>
+</div>`;
+}).join("");
+}
+
+// ---------- SORT ----------
+function sortStocks(){
+STOCKS.sort((a,b)=>{
+const pa=prices[a.ticker]?.price||0;
+const pb=prices[b.ticker]?.price||0;
+return pb-pa;
+});
+render();
+}
+
+// ---------- VIDEO ----------
+async function video(){
+const id=document.getElementById("videoId").value;
+const res=await fetch(API+"/analyze-video",{
+method:"POST",
+headers:{'Content-Type':'application/json'},
+body:JSON.stringify({videoId:id})
+});
+const d=await res.json();
+document.getElementById("videoOut").innerText=d.summary;
+}
+
+// ---------- EARNINGS ----------
+async function earnings(){
+const res=await fetch(API+"/earnings");
+const d=await res.json();
+document.getElementById("earningsOut").innerHTML=
+d.map(e=>`<div>${e.ticker}: ${e.summary}</div>`).join("");
+}
+
+// ---------- INIT ----------
+setInterval(fetchPrices,30000);
+
+window.onload=()=>{
+const saved=localStorage.getItem("stocks");
+if(saved){STOCKS=JSON.parse(saved);fetchPrices();}
+renderPortfolio();
 };
 </script>
 
