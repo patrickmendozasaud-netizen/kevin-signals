@@ -109,23 +109,30 @@ async function parse(){
 
   const words = text.match(/\b[A-Z]{2,5}\b/g) || [];
 
-  const blacklist = [
-    "OPEN","VERY","TODAY","EXPECT","WEEK","MONTH","YEAR",
-    "THIS","THAT","WITH","FROM","YOUR","KEVIN","BUY","SELL",
-    "LIST","LONG","TERM","NOTE","MAKE","MAKES","MORE","OVER",
-    "UNDER","AFTER","BEFORE","ABOUT","INTO","ONTO","FROM"
-  ];
+  const unique = [...new Set(words)];
 
-  const tickers = [...new Set(words)]
-    .filter(w => !blacklist.includes(w));
+  document.getElementById("status").innerText = "Validating tickers...";
 
-  STOCKS = tickers.map(t => ({ ticker: t }));
+  // Validate tickers using Yahoo
+  const res = await fetch("/api/prices", {
+    method:"POST",
+    headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({ tickers: unique })
+  });
+
+  const validPrices = await res.json();
+
+  // only keep real tickers that returned price
+  STOCKS = Object.keys(validPrices).map(t => ({ ticker: t }));
 
   localStorage.setItem("stocks", JSON.stringify(STOCKS));
 
-  document.getElementById("status").innerText = "✅ Parsed";
+  document.getElementById("status").innerText = "✅ Real tickers only";
 
-  fetchPrices();
+  prices = validPrices;
+
+  render();
+  renderPortfolio();
 }
 
 // ---------- PRICES ----------
