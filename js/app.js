@@ -5,6 +5,19 @@ import {
 } from "./api.js";
 import { renderStocks, renderPortfolio, renderBrief, renderVideos } from "./ui.js";
 
+// Expose globals at the very top — function declarations below are hoisted,
+// so this works even though the function bodies appear lower in the file.
+// This way the inline onclick="..." handlers always have something to call,
+// even if some later piece of init fails.
+window.tab = tab;
+window.parse = parse;
+window.analyze = analyze;
+window.sortStocks = sortStocks;
+window.loadVideos = loadVideos;
+window.analyzeVideoTicker = analyzeVideoTicker;
+window.earnings = earnings;
+console.log("[kevin-signals] app.js loaded — globals set:", Object.keys(window).filter(k => ["tab","parse","analyze","sortStocks","loadVideos","analyzeVideoTicker","earnings"].includes(k)));
+
 let currentSort = null;
 let currentBrief = null;
 let videosCache = null;
@@ -194,15 +207,6 @@ function escapeHtml(s) {
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
-
-// Expose globals BEFORE DOM ready so inline onclick handlers always work.
-window.tab = tab;
-window.parse = parse;
-window.analyze = analyze;
-window.sortStocks = sortStocks;
-window.loadVideos = loadVideos;
-window.analyzeVideoTicker = analyzeVideoTicker;
-window.earnings = earnings;
 
 document.addEventListener("DOMContentLoaded", async () => {
   try {
