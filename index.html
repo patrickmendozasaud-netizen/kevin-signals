@@ -99,8 +99,11 @@ let portfolio=JSON.parse(localStorage.getItem("portfolio")||"[]");
 
 // ---------- TAB ----------
 function tab(n){
-document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
-document.getElementById(n).style.display='block';
+  document.querySelectorAll('.tab').forEach(t=>t.style.display='none');
+  document.querySelectorAll('.sidebar button').forEach(b=>b.classList.remove('active'));
+
+  document.getElementById(n).style.display='block';
+  document.querySelector(`.sidebar button[onclick="tab('${n}')"]`).classList.add('active');
 }
 
 // ---------- PARSE ----------
