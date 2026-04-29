@@ -105,21 +105,27 @@ document.getElementById(n).style.display='block';
 
 // ---------- PARSE ----------
 async function parse(){
-const text=document.getElementById("report").value;
+  const text = document.getElementById("report").value;
 
-const words=text.match(/\b[A-Z]{2,5}\b/g)||[];
+  const words = text.match(/\b[A-Z]{2,5}\b/g) || [];
 
-const blacklist=["OPEN","VERY","TODAY","EXPECT","WEEK","MONTH"];
-const unique=[...new Set(words)].filter(w=>!blacklist.includes(w));
+  const blacklist = [
+    "OPEN","VERY","TODAY","EXPECT","WEEK","MONTH","YEAR",
+    "THIS","THAT","WITH","FROM","YOUR","KEVIN","BUY","SELL",
+    "LIST","LONG","TERM","NOTE","MAKE","MAKES","MORE","OVER",
+    "UNDER","AFTER","BEFORE","ABOUT","INTO","ONTO","FROM"
+  ];
 
-STOCKS=unique.map(t=>({ticker:t}));
+  const tickers = [...new Set(words)]
+    .filter(w => !blacklist.includes(w));
 
-localStorage.setItem("stocks",JSON.stringify(STOCKS));
+  STOCKS = tickers.map(t => ({ ticker: t }));
 
-document.getElementById("status").innerText="✅ Parsed";
+  localStorage.setItem("stocks", JSON.stringify(STOCKS));
 
-render();
-fetchPrices();
+  document.getElementById("status").innerText = "✅ Parsed";
+
+  fetchPrices();
 }
 
 // ---------- PRICES ----------
