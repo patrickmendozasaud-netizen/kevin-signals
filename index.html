@@ -171,6 +171,7 @@ const d=await res.json();
 
 el.innerHTML=`
 <b>${d.decision}</b> (${d.confidence}%)
+<br><small>${d.reason}</small>
 <br>Entry: ${d.entry}
 <br>Target: ${d.target}
 <br>Stop: ${d.stop}
