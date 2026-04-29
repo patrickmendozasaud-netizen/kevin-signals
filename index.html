@@ -108,34 +108,44 @@ function tab(n){
 
 // ---------- PARSE ----------
 async function parse(){
-  const text = document.getElementById("report").value;
+  try {
+    const text = document.getElementById("report").value;
 
-  const words = text.match(/\b[A-Z]{2,5}\b/g) || [];
+    if(!text){
+      alert("Paste report first");
+      return;
+    }
 
-  const unique = [...new Set(words)];
+    const words = text.match(/\b[A-Z]{2,5}\b/g) || [];
+    const unique = [...new Set(words)];
 
-  document.getElementById("status").innerText = "Validating tickers...";
+    document.getElementById("status").innerText = "Validating tickers...";
 
-  // Validate tickers using Yahoo
-  const res = await fetch("/api/prices", {
-    method:"POST",
-    headers:{'Content-Type':'application/json'},
-    body: JSON.stringify({ tickers: unique })
-  });
+    const res = await fetch("/api/prices", {
+      method:"POST",
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ tickers: unique })
+    });
 
-  const validPrices = await res.json();
+    if(!res.ok) throw new Error("API failed");
 
-  // only keep real tickers that returned price
-  STOCKS = Object.keys(validPrices).map(t => ({ ticker: t }));
+    const validPrices = await res.json();
 
-  localStorage.setItem("stocks", JSON.stringify(STOCKS));
+    STOCKS = Object.keys(validPrices).map(t => ({ ticker: t }));
 
-  document.getElementById("status").innerText = "✅ Real tickers only";
+    prices = validPrices;
 
-  prices = validPrices;
+    localStorage.setItem("stocks", JSON.stringify(STOCKS));
 
-  render();
-  renderPortfolio();
+    document.getElementById("status").innerText = "✅ Parsed";
+
+    render();
+    renderPortfolio();
+
+  } catch (err) {
+    console.error(err);
+    document.getElementById("status").innerText = "❌ Parse failed";
+  }
 }
 
 // ---------- PRICES ----------
@@ -173,14 +183,11 @@ function render(){
       change = ((p - prev) / prev * 100).toFixed(2);
     }
 
-    const priceDisplay = p ? `$${p}` : "—";
-    const changeDisplay = p ? `(${change}%)` : "";
-
     return `
       <div class="card">
         <b>${s.ticker}</b><br>
         <span class="${change >= 0 ? 'up' : 'down'}">
-          ${priceDisplay} ${changeDisplay}
+          ${p ? `$${p}` : "—"} ${p ? `(${change}%)` : ""}
         </span>
         <br>
         <button onclick="analyze('${s.ticker}',${p || 0})">AI Analyze</button>
