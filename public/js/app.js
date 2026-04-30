@@ -126,6 +126,7 @@ async function analyze(ticker) {
   } catch (e) {
     el.innerText = "❌ Error";
   }
+  renderStocks("score");
 }
 
 window.runAnalyze = analyze;
