@@ -1,27 +1,33 @@
+// ---------------- GLOBAL STATE ----------------
+
 export let STOCKS = [];
 export let prices = {};
-export let portfolio = [];
+export let portfolio = JSON.parse(localStorage.getItem("portfolio") || "[]");
 
-try {
-  const p = JSON.parse(localStorage.getItem("portfolio") || "[]");
-  if (Array.isArray(p)) portfolio = p;
-} catch { portfolio = []; }
+// ---------------- SETTERS ----------------
 
-try {
-  const s = JSON.parse(localStorage.getItem("stocks") || "[]");
-  if (Array.isArray(s)) STOCKS = s.filter(x => x && typeof x.ticker === "string");
-} catch { STOCKS = []; }
-
-export function saveStocks(data) {
-  STOCKS = Array.isArray(data) ? data : [];
-  try { localStorage.setItem("stocks", JSON.stringify(STOCKS)); } catch {}
+// replace entire stock list
+export function setStocks(newStocks) {
+  STOCKS.length = 0;
+  newStocks.forEach(s => STOCKS.push(s));
 }
 
-export function savePrices(p) {
-  prices = (p && typeof p === "object") ? p : {};
+// replace all prices
+export function setPrices(newPrices) {
+  prices = newPrices || {};
 }
 
-export function savePortfolio(p) {
-  portfolio = Array.isArray(p) ? p : [];
-  try { localStorage.setItem("portfolio", JSON.stringify(portfolio)); } catch {}
+// update single stock score
+export function setScore(ticker, score) {
+  const s = STOCKS.find(x => x.ticker === ticker);
+  if (s) s.score = score;
+}
+
+// ---------------- PORTFOLIO ----------------
+
+export function addToPortfolio(trade) {
+  if (portfolio.find(p => p.ticker === trade.ticker)) return;
+
+  portfolio.push(trade);
+  localStorage.setItem("portfolio", JSON.stringify(portfolio));
 }
