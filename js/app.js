@@ -256,3 +256,20 @@ document.addEventListener("DOMContentLoaded", async () => {
   renderPortfolio();
   renderBrief(currentBrief);
 });
+
+window.onload = async ()=>{
+  initUI();
+
+  const saved = localStorage.getItem("stocks");
+
+  if(saved){
+    const parsed = JSON.parse(saved);
+    // ⚠️ use your state setter if you have one
+    parsed.forEach(s => STOCKS.push(s));
+
+    await fetchPrices(parsed.map(s=>s.ticker));
+  }
+
+  renderStocks();
+  renderPortfolio();
+};
