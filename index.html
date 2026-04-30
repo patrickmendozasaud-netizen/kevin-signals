@@ -180,12 +180,12 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
 </div>
 
 <div class="tabs">
-  <button class="tab-btn active" data-tab="import" onclick="window.tab('import')">📥 Import</button>
-  <button class="tab-btn" data-tab="brief" onclick="window.tab('brief')">📋 AI Brief</button>
-  <button class="tab-btn" data-tab="stocks" onclick="window.tab('stocks')">📊 Stocks</button>
-  <button class="tab-btn" data-tab="portfolio" onclick="window.tab('portfolio')">💼 AI Portfolio</button>
-  <button class="tab-btn" data-tab="videos" onclick="window.tab('videos')">🎥 Videos</button>
-  <button class="tab-btn" data-tab="earnings" onclick="window.tab('earnings')">📰 Earnings</button>
+  <button class="tab-btn active" data-tab="import">📥 Import</button>
+  <button class="tab-btn" data-tab="brief">📋 AI Brief</button>
+  <button class="tab-btn" data-tab="stocks">📊 Stocks</button>
+  <button class="tab-btn" data-tab="portfolio">💼 AI Portfolio</button>
+  <button class="tab-btn" data-tab="videos">🎥 Videos</button>
+  <button class="tab-btn" data-tab="earnings">📰 Earnings</button>
 </div>
 
 <div class="main">
@@ -194,7 +194,7 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
     <h2>Import Kevin's Report</h2>
     <p class="lead">Paste the report text. We'll detect tickers, fetch live prices, and the AI will write its own independent verdict with key points to watch and catalysts.</p>
     <textarea id="report" placeholder="Paste the Alpha Report here…"></textarea>
-    <button class="primary" onclick="window.parse()">⚡ Parse &amp; Analyze</button>
+    <button class="primary" id="parseBtn">⚡ Parse & Analyze</button>
     <div id="status" class="status"></div>
   </div>
 
@@ -207,7 +207,7 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
   <div id="stocks" class="tab" style="display:none">
     <h2>📊 Stocks</h2>
     <p class="lead">Tickers found in the report with live prices. Click "AI Analyze" on any card for a buy/sell/hold rating with entry, target and stop.</p>
-    <button onclick="window.sortStocks()">↕ Sort by Movers</button>
+    <button id="sortBtn">↕ Sort by Movers</button>
     <div id="stocksGrid" class="grid" style="margin-top:14px"></div>
   </div>
 
@@ -220,7 +220,7 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
   <div id="videos" class="tab" style="display:none">
     <h2>🎥 Latest Kevin Videos</h2>
     <p class="lead">Pulled live from Meet Kevin's YouTube channel. Click any video and the AI fetches the transcript, summarises it, extracts every ticker mentioned and runs the same buy/sell analysis as the report.</p>
-    <button onclick="window.loadVideos()">🔄 Refresh</button>
+    <button id="refreshVideos">🔄 Refresh</button>
     <div id="videosList" style="margin-top:14px"></div>
     <div id="videoOut" style="margin-top:14px"></div>
   </div>
@@ -228,7 +228,7 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
   <div id="earnings" class="tab" style="display:none">
     <h2>📰 Earnings</h2>
     <p class="lead">Recent earnings highlights.</p>
-    <button onclick="window.earnings()">Load Earnings</button>
+    <button id="loadEarnings">Load Earnings</button>
     <div id="earningsOut" class="grid" style="margin-top:14px"></div>
   </div>
 
