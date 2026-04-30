@@ -178,7 +178,7 @@ async function loadEarnings(){
 
 // ---------------- INIT ----------------
 window.addEventListener("DOMContentLoaded", () => {
-
+  
   console.log("✅ DOM ready");
 
   // tabs
@@ -190,6 +190,7 @@ window.addEventListener("DOMContentLoaded", () => {
   document.getElementById("parseBtn")?.addEventListener("click", parse);
   document.getElementById("refreshVideos")?.addEventListener("click", loadVideos);
   document.getElementById("loadEarnings")?.addEventListener("click", loadEarnings);
+  document.getElementById("rankBtn")?.addEventListener("click", sortStocks);
 
   // default tab
   tab("import");
