@@ -1,6 +1,10 @@
 import { renderStocks, renderPortfolio, renderBrief, renderVideos } from "./ui.js";
 import { STOCKS, prices, portfolio } from "./state.js";
 
+window.STOCKS = STOCKS;
+window.prices = prices;
+window.portfolio = portfolio;
+
 console.log("✅ app.js loaded");
 
 const API = "/api";
