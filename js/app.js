@@ -238,25 +238,13 @@ function escapeHtml(s) {
     .replace(/"/g,'&quot;').replace(/'/g,'&#39;');
 }
 
-document.addEventListener("DOMContentLoaded", async () => {
-  try {
-    const saved = localStorage.getItem("brief");
-    if (saved) currentBrief = JSON.parse(saved);
-  } catch {}
-
-  if (STOCKS.length) {
-    try {
-      const data = await fetchPrices(STOCKS.map(s => s.ticker));
-      savePrices(data);
-    } catch (e) {
-      console.warn("Initial price fetch failed:", e.message);
-    }
+document.addEventListener("click", (e)=>{
+  if(e.target.classList.contains("analyze-btn")){
+    const ticker = e.target.dataset.ticker;
+    const price = Number(e.target.dataset.price);
+    analyze(ticker, price);
   }
-  renderStocks(currentSort);
-  renderPortfolio();
-  renderBrief(currentBrief);
 });
-
 window.onload = async ()=>{
   initUI();
 
