@@ -1,4 +1,4 @@
-import { STOCKS, prices, portfolio } from "./state.js";
+import { getScore } from "./ai-score.js";
 
 function fmtPrice(p) { return p == null ? "—" : `$${Number(p).toFixed(2)}`; }
 function pctChange(p, prev) {
@@ -21,12 +21,11 @@ export function renderStocks(sortBy = null) {
   }
 
   let list = [...STOCKS];
-  if (sortBy === "movers") {
-    list.sort((a, b) => {
-      const ca = Math.abs(pctChange(prices[a.ticker]?.price, prices[a.ticker]?.prev) ?? 0);
-      const cb = Math.abs(pctChange(prices[b.ticker]?.price, prices[b.ticker]?.prev) ?? 0);
-      return cb - ca;
-    });
+  if (sortBy === "score") {
+  list.sort((a, b) => {
+    return getScore(b.ticker) - getScore(a.ticker);
+  });
+}
   }
 
   el.innerHTML = list.map(s => {
