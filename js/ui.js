@@ -63,13 +63,40 @@ export function renderPortfolio() {
     const pnl = p.entry ? ((now - p.entry) / p.entry) * 100 : 0;
     const cls = pnl >= 0 ? "up" : "down";
     return `
-      <div class="card">
-        <div class="ticker">${esc(p.ticker)}</div>
-        <div class="price ${cls}">${pnl >= 0 ? "+" : ""}${pnl.toFixed(2)}%</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:6px">Entry: $${Number(p.entry).toFixed(2)}</div>
-        <div style="font-size:11px;color:var(--muted)">Now: ${fmtPrice(now)}</div>
+<div class="card">
+
+  <div style="display:flex;justify-content:space-between;">
+    <div>
+      <div class="ticker">${esc(s.ticker)}</div>
+      <div class="price ${cls}">
+        ${fmtPrice(p)}
+        <span style="font-size:11px">${chTxt}</span>
       </div>
-    `;
+    </div>
+
+    <div class="badge blue">
+      ${esc(s.signal || "WATCH")}
+    </div>
+  </div>
+
+  <!-- ENTRY ZONES -->
+  <div style="margin-top:8px;font-size:11px;color:var(--muted)">
+    ${s.entry ? `Entry: $${esc(s.entry)}<br>` : ""}
+    ${s.target ? `Target: $${esc(s.target)}<br>` : ""}
+    ${s.stop ? `Stop: $${esc(s.stop)}` : ""}
+  </div>
+
+  <button class="primary analyze-btn"
+    data-ticker="${esc(s.ticker)}"
+    data-price="${p ?? 0}"
+    style="margin-top:10px;width:100%">
+    🤖 AI Analyze
+  </button>
+
+  <div id="ai-${esc(s.ticker)}" class="ai-line"></div>
+
+</div>
+`;
   }).join("");
 }
 
