@@ -123,6 +123,8 @@ async function analyze(ticker) {
   }
 }
 
+window.runAnalyze = analyze;
+
 // ---------------- AUTO BUY ----------------
 function autoBuy(ticker, price) {
   if (portfolio.find(p => p.ticker === ticker)) return;
