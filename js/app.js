@@ -202,6 +202,36 @@ async function earnings() {
   }
 }
 
+function initUI(){
+
+  // ---------- PARSE ----------
+  document.getElementById("parseBtn")?.addEventListener("click", parse);
+
+  // ---------- SORT ----------
+  document.getElementById("sortBtn")?.addEventListener("click", ()=>{
+    renderStocks("movers");
+  });
+
+  // ---------- TABS ----------
+  document.querySelectorAll(".tab-btn").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const name = btn.dataset.tab;
+
+      document.querySelectorAll(".tab").forEach(t=>t.style.display="none");
+      document.getElementById(name).style.display = "block";
+
+      document.querySelectorAll(".tab-btn").forEach(b=>b.classList.remove("active"));
+      btn.classList.add("active");
+    });
+  });
+
+  // ---------- VIDEOS ----------
+  document.getElementById("refreshVideos")?.addEventListener("click", loadVideos);
+
+  // ---------- EARNINGS ----------
+  document.getElementById("loadEarnings")?.addEventListener("click", earnings);
+}
+
 function escapeHtml(s) {
   return String(s == null ? "" : s)
     .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
