@@ -70,6 +70,10 @@ async function parse() {
 
   await fetchPrices();
 
+  for (const s of STOCKS) {
+  await analyze(s.ticker);
+}
+
   status.innerText = "✅ Done";
 }
 
