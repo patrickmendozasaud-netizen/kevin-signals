@@ -1,31 +1,22 @@
 import { prices } from "./state.js";
 
 export function getScore(ticker){
-  const data = prices[ticker];
-  if(!data) return 0;
+  const d = prices[ticker];
+  if(!d || !d.price || !d.prev) return 0;
 
-  const price = data.price;
-  const prev = data.prev;
+  const price = d.price;
+  const prev = d.prev;
 
-  if(!price || !prev) return 0;
-
-  // --- CORE SIGNALS ---
   const changePct = ((price - prev) / prev) * 100;
 
-  // momentum boost (strong movers)
-  const momentum = Math.abs(changePct);
-
-  // direction weight
-  const direction = changePct > 0 ? 1 : -1;
-
-  // volatility proxy (bigger move = more attention)
+  const momentum = Math.abs(changePct);      // strength of move
+  const direction = changePct > 0 ? 1 : -1;  // bullish vs bearish
   const volatility = Math.min(momentum * 2, 20);
 
-  // --- FINAL SCORE ---
-  let score =
-    (momentum * 3) +        // strength
+  const score =
+    (momentum * 3) +        // main driver
     (volatility * 1.5) +    // expansion
-    (direction * 5);        // bullish vs bearish tilt
+    (direction * 5);        // bias
 
   return Number(score.toFixed(2));
 }
