@@ -103,7 +103,12 @@ async function analyze(ticker) {
 
     // save score
     const stock = STOCKS.find(s => s.ticker === ticker);
-    if (stock) stock.score = res.score || res.confidence || 0;
+
+    if (stock) {
+      stock.score = Number(res.score ?? res.confidence ?? 0);
+    } else {
+      console.warn("Stock not found for scoring:", ticker);
+    }
 
     el.innerHTML = `
       <b>${res.decision}</b> (${res.confidence}%)
