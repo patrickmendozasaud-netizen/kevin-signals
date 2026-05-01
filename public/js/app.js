@@ -115,12 +115,14 @@ async function analyze(ticker) {
     }
 
     el.innerHTML = `
-      <b>${res.decision}</b> (${res.confidence}%)
-      <br>${res.reason}
-      <br>Entry: ${res.entry}
-      <br>Target: ${res.target}
-      <br>Stop: ${res.stop}
-    `;
+  <div class="ai-line">
+    <b>${decision}</b> (${confidence}%)
+    <br>Score: ${score}
+    <br>Entry: ${entry}
+    <br>Target: ${target}
+    <br>Stop: ${stop}
+  </div>
+`;
 
     // auto buy
     if (res.decision === "BUY" && res.confidence > 70) {
