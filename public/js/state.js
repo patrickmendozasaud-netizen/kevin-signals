@@ -1,33 +1,26 @@
-// ---------------- GLOBAL STATE ----------------
-
 export let STOCKS = [];
 export let prices = {};
 export let portfolio = JSON.parse(localStorage.getItem("portfolio") || "[]");
 
-// ---------------- SETTERS ----------------
-
-// replace entire stock list
-export function setStocks(newStocks) {
+export function setStocks(s){
   STOCKS.length = 0;
-  newStocks.forEach(s => STOCKS.push(s));
+  STOCKS.push(...s);
 }
 
-// replace all prices
-export function setPrices(newPrices) {
-  prices = newPrices || {};
+export function setPrices(p){
+  for(const k in p){
+    prices[k] = p[k];
+  }
 }
 
-// update single stock score
-export function setScore(ticker, score) {
-  const s = STOCKS.find(x => x.ticker === ticker);
-  if (s) s.score = score;
-}
+export function addToPortfolio(p){
+  if(portfolio.find(x=>x.ticker===p.ticker)) return;
 
-// ---------------- PORTFOLIO ----------------
+  portfolio.push({
+    ticker: p.ticker,
+    entry: p.entry,
+    time: Date.now()
+  });
 
-export function addToPortfolio(trade) {
-  if (portfolio.find(p => p.ticker === trade.ticker)) return;
-
-  portfolio.push(trade);
   localStorage.setItem("portfolio", JSON.stringify(portfolio));
 }
