@@ -178,3 +178,4 @@ function loadSaved() {
 
   renderPortfolio();
 }
+window.appReady = true;
