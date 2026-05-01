@@ -250,12 +250,7 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
   window.addEventListener('unhandledrejection', function(e){
     show('PROMISE: '+(e.reason&&e.reason.stack?e.reason.stack:e.reason));
   });
-  // Sanity check: if window.tab still isn't defined 3s after load, the JS module didn't load.
-  setTimeout(function(){
-    if(typeof window.tab !== 'function'){
-      show('Module failed to load: /js/app.js — buttons will not work.\nLikely cause: file 404, MIME error, or import path wrong.\nOpen Network tab, look for /js/app.js, /js/api.js, /js/state.js, /js/ui.js — they must all be 200 with type "application/javascript".');
-    }
-  }, 3000);
+
 })();
 </script>
 <script type="module" src="/js/app.js"></script>
