@@ -1,170 +1,166 @@
-import * as UI from "./ui.js";
-import * as API from "./api.js";
-import {
-  STOCKS,
-  prices,
-  portfolio,
-  setStocks,
-  setPrices,
-  addToPortfolio
-} from "./state.js";
+<!DOCTYPE html>
 
-// ---------------- GLOBALS ----------------
-let videosCache = [];
-let currentSort = null;
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0f172a">
 
-// ---------------- TAB SYSTEM ----------------
-function tab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.style.display="none");
-  document.getElementById(name).style.display = "block";
+<title>Kevin Signals</title>
 
-  document.querySelectorAll(".tab-btn").forEach(b=>{
-    b.classList.toggle("active", b.dataset.tab === name);
-  });
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+:root {
+  --bg:#0f172a; --s1:#1e293b; --s2:#253047;
+  --txt:#f1f5f9; --muted:#94a3b8;
+  --blue:#3b82f6; --green:#22c55e; --red:#ef4444;
 }
-window.tab = tab;
-
-// ---------------- PARSE ----------------
-async function parse(){
-  const text = document.getElementById("report").value;
-  const status = document.getElementById("status");
-
-  status.innerText = "Parsing...";
-
-  const words = text.match(/\b[A-Z]{2,5}\b/g) || [];
-  const tickers = [...new Set(words)];
-
-  setStocks(tickers.map(t=>({ ticker:t })));
-
-  status.innerText = "Fetching prices...";
-
-  const res = await API.getPrices(tickers);
-  setPrices(res);
-
-  UI.renderStocks();
-  UI.renderPortfolio();
-
-  status.innerText = "✅ Done";
+*{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:'Inter',sans-serif;
+  background:var(--bg);
+  color:var(--txt);
 }
-window.parse = parse;
 
-// ---------------- ANALYZE ----------------
-async function analyze(ticker){
-  const el = document.getElementById(`ai-${ticker}`);
-  if(!el) return;
-
-  el.innerHTML = "Analyzing...";
-
-  try{
-    const price = prices[ticker]?.price || 0;
-
-    const d = await API.analyzeStock(ticker, price);
-
-    const decision = d.decision || "HOLD";
-    const confidence = d.confidence || 0;
-    const entry = d.entry ?? "—";
-    const target = d.target ?? "—";
-    const stop = d.stop ?? "—";
-    const score = d.score ?? confidence;
-
-    el.innerHTML = `
-      <div class="ai-line">
-        <b>${decision}</b> (${confidence}%)
-        <br>Score: ${score}
-        <br>Entry: ${entry}
-        <br>Target: ${target}
-        <br>Stop: ${stop}
-      </div>
-    `;
-
-    // save score
-    const stock = STOCKS.find(s=>s.ticker===ticker);
-    if(stock){
-      stock.score = score;
-    }
-
-    // auto buy
-    if(decision === "BUY" && confidence > 70){
-      addToPortfolio({ ticker, entry: price });
-      UI.renderPortfolio();
-    }
-
-  }catch(e){
-    console.error(e);
-    el.innerHTML = "❌ AI error";
-  }
+/* Top */
+.topbar{
+  padding:14px 18px;
+  border-bottom:1px solid var(--s1);
+  font-weight:800;
 }
-window.analyze = analyze;
 
-// ---------------- RANK ----------------
-function rankStocks(){
-  currentSort = "score";
-
-  STOCKS.sort((a,b)=>{
-    return (b.score || 0) - (a.score || 0);
-  });
-
-  UI.renderStocks();
+/* Tabs */
+.tabs{
+  display:flex;
+  gap:6px;
+  padding:10px;
+  border-bottom:1px solid var(--s1);
 }
-window.sortStocks = rankStocks;
-
-// ---------------- VIDEOS ----------------
-async function loadVideos(){
-  try{
-    videosCache = await API.getVideos();
-
-    UI.renderVideos(videosCache, async (video)=>{
-      const out = document.getElementById("videoOut");
-      out.innerHTML = "Analyzing video...";
-
-      const res = await API.analyzeVideo(video.videoId);
-
-      out.innerHTML = `<div class="card">${res.summary || "No summary"}</div>`;
-    });
-
-  }catch(e){
-    console.error(e);
-  }
+.tab-btn{
+  padding:8px 12px;
+  background:transparent;
+  border:none;
+  color:var(--muted);
+  cursor:pointer;
 }
-window.loadVideos = loadVideos;
-
-// ---------------- EARNINGS ----------------
-async function loadEarnings(){
-  const el = document.getElementById("earningsOut");
-
-  const data = await API.getEarnings();
-
-  el.innerHTML = data.map(e=>`
-    <div class="card">
-      <b>${e.ticker}</b><br>
-      ${e.summary}
-    </div>
-  `).join("");
+.tab-btn.active{
+  background:var(--blue);
+  color:white;
+  border-radius:6px;
 }
-window.earnings = loadEarnings;
 
-// ---------------- INIT ----------------
-window.addEventListener("DOMContentLoaded", ()=>{
+/* Layout */
+.main{padding:16px}
+.card{
+  background:var(--s1);
+  padding:12px;
+  border-radius:10px;
+  border:1px solid var(--s2);
+  margin-bottom:10px;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:10px;
+}
 
-  // tab buttons
-  document.querySelectorAll(".tab-btn").forEach(btn=>{
-    btn.addEventListener("click", ()=>{
-      tab(btn.dataset.tab);
-    });
-  });
+/* Inputs */
+textarea{
+  width:100%;
+  height:150px;
+  margin:10px 0;
+  background:#020617;
+  color:white;
+  border:1px solid var(--s2);
+  padding:10px;
+}
 
-  // main buttons
-  document.getElementById("parseBtn")?.addEventListener("click", parse);
-  document.getElementById("rankBtn")?.addEventListener("click", rankStocks);
-  document.getElementById("refreshVideos")?.addEventListener("click", loadVideos);
-  document.getElementById("loadEarnings")?.addEventListener("click", loadEarnings);
+/* Buttons */
+button{
+  padding:8px 12px;
+  border:none;
+  background:var(--s2);
+  color:white;
+  cursor:pointer;
+}
+button.primary{background:var(--blue)}
 
-  // initial render
-  UI.renderStocks();
-  UI.renderPortfolio();
+/* Tabs hidden */
+.tab{display:none}
+</style>
 
-  // mark ready
-  window.appReady = true;
+</head>
+
+<body>
+
+<div class="topbar">Kevin Signals</div>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="import">Import</button>
+  <button class="tab-btn" data-tab="stocks">Stocks</button>
+  <button class="tab-btn" data-tab="portfolio">Portfolio</button>
+  <button class="tab-btn" data-tab="videos">Videos</button>
+  <button class="tab-btn" data-tab="earnings">Earnings</button>
+</div>
+
+<div class="main">
+
+  <!-- IMPORT -->
+
+  <div id="import" class="tab" style="display:block">
+    <textarea id="report" placeholder="Paste report..."></textarea>
+    <button id="parseBtn" class="primary">Parse</button>
+    <div id="status"></div>
+  </div>
+
+  <!-- STOCKS -->
+
+  <div id="stocks" class="tab">
+    <button id="rankBtn">Rank</button>
+    <div id="stocksGrid" class="grid"></div>
+  </div>
+
+  <!-- PORTFOLIO -->
+
+  <div id="portfolio" class="tab">
+    <div id="portfolioGrid" class="grid"></div>
+  </div>
+
+  <!-- VIDEOS -->
+
+  <div id="videos" class="tab">
+    <button id="refreshVideos">Refresh</button>
+    <div id="videosList"></div>
+    <div id="videoOut"></div>
+  </div>
+
+  <!-- EARNINGS -->
+
+  <div id="earnings" class="tab">
+    <button id="loadEarnings">Load</button>
+    <div id="earningsOut" class="grid"></div>
+  </div>
+
+</div>
+
+<!-- ERROR BAR -->
+
+<div id="errBar" style="display:none;position:fixed;bottom:0;left:0;right:0;background:red;color:#fff;padding:8px;font-size:12px;"></div>
+
+<script>
+window.addEventListener("error", e=>{
+  const bar=document.getElementById("errBar");
+  bar.style.display="block";
+  bar.textContent=e.message;
 });
+</script>
+
+<!-- ✅ ONLY JS LOAD (IMPORTANT) -->
 
 <script type="module" src="/js/app.js"></script>
+
+</body>
+</html>
