@@ -1,11 +1,4 @@
 {
-  "routes": [
-    { "handle": "filesystem" },
-
-    { "src": "/js/(.*)", "dest": "/js/$1" },
-
-    { "src": "/(.*)", "dest": "/index.html" }
-  ],
   "headers": [
     {
       "source": "/js/(.*)",
