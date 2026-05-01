@@ -114,13 +114,21 @@ async function analyze(ticker) {
       console.warn("Stock not found for scoring:", ticker);
     }
 
+    // Destructure all fields from the API response before using them
+    const { decision = "HOLD", confidence = 0, score = 0, entry = 0, target = 0, stop = 0, reason = "" } = res;
+
+    const badgeCls = decision === "BUY" ? "badge-buy" : decision === "SELL" ? "badge-sell" : "badge-hold";
+
     el.innerHTML = `
   <div class="ai-line">
-    <b>${decision}</b> (${confidence}%)
-    <br>Score: ${score}
-    <br>Entry: ${entry}
-    <br>Target: ${target}
-    <br>Stop: ${stop}
+    <span class="${badgeCls}">${decision}</span>
+    <span style="color:#94a3b8;margin-left:6px">${confidence}% confidence</span>
+    ${reason ? `<div style="margin-top:4px;font-size:11px;color:#94a3b8">${reason}</div>` : ""}
+    <div style="margin-top:6px;font-size:11px;font-family:monospace;color:#64748b">
+      ${entry  ? `E:$${entry} `  : ""}
+      ${target ? `T:$${target} ` : ""}
+      ${stop   ? `S:$${stop}`    : ""}
+    </div>
   </div>
 `;
 
