@@ -251,6 +251,12 @@ h3{font-weight:700; color:var(--blue-lt); margin:0 0 10px; font-size:13px; lette
     show('PROMISE: '+(e.reason&&e.reason.stack?e.reason.stack:e.reason));
   });
 
+  setTimeout(function(){
+  if(!window.appReady){
+    show('App failed to initialize (check console)');
+  }
+}, 3000);
+
 })();
 </script>
 <script type="module" src="/js/app.js"></script>
