@@ -114,21 +114,13 @@ async function analyze(ticker) {
       console.warn("Stock not found for scoring:", ticker);
     }
 
-    // Destructure all fields from the API response before using them
-    const { decision = "HOLD", confidence = 0, score = 0, entry = 0, target = 0, stop = 0, reason = "" } = res;
-
-    const badgeCls = decision === "BUY" ? "badge-buy" : decision === "SELL" ? "badge-sell" : "badge-hold";
-
     el.innerHTML = `
   <div class="ai-line">
-    <span class="${badgeCls}">${decision}</span>
-    <span style="color:#94a3b8;margin-left:6px">${confidence}% confidence</span>
-    ${reason ? `<div style="margin-top:4px;font-size:11px;color:#94a3b8">${reason}</div>` : ""}
-    <div style="margin-top:6px;font-size:11px;font-family:monospace;color:#64748b">
-      ${entry  ? `E:$${entry} `  : ""}
-      ${target ? `T:$${target} ` : ""}
-      ${stop   ? `S:$${stop}`    : ""}
-    </div>
+    <b>${decision}</b> (${confidence}%)
+    <br>Score: ${score}
+    <br>Entry: ${entry}
+    <br>Target: ${target}
+    <br>Stop: ${stop}
   </div>
 `;
 
@@ -164,8 +156,25 @@ async function loadVideos() {
   const videos = await API.getVideos();
 
   renderVideos(videos, async (video) => {
-    const res = await API.analyzeVideo(video.id);
-    document.getElementById("videoOut").innerText = res.summary;
+    const out = document.getElementById("videoOut");
+    out.innerHTML = `<div class="card" style="margin-top:12px"><span class="spinner"></span> Analyzing video...</div>`;
+    try {
+      const res = await API.analyzeVideo(video.videoId);
+      const tickers = Array.isArray(res.stocks) ? res.stocks : [];
+      out.innerHTML = `
+        <div class="card" style="margin-top:12px">
+          <div style="font-weight:700;font-size:15px;margin-bottom:10px">${video.title}</div>
+          <div style="color:#94a3b8;font-size:13px;line-height:1.6;margin-bottom:12px">${res.summary || ""}</div>
+          ${tickers.length ? `
+            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tickers Mentioned</div>
+            <div style="display:flex;flex-wrap:wrap;gap:8px">
+              ${tickers.map(t => `<span style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:4px 10px;font-family:monospace;font-size:13px;font-weight:700">${t}</span>`).join("")}
+            </div>
+          ` : '<div style="color:#64748b">No specific tickers detected.</div>'}
+        </div>`;
+    } catch(e) {
+      out.innerHTML = `<div class="card" style="margin-top:12px;color:#f87171">❌ ${e.message}</div>`;
+    }
   });
 }
 
