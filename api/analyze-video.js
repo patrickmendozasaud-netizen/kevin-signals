@@ -94,4 +94,4 @@ tickers: [],
 error: err.message
 });
 }
-
+}
