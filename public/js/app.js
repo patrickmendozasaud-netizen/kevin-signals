@@ -152,31 +152,48 @@ function autoBuy(ticker, price) {
 }
 
 // ---------------- VIDEOS ----------------
-async function loadVideos() {
-  const videos = await API.getVideos();
+async function loadVideos(){
+try{
+videosCache = await API.getVideos();
 
-  renderVideos(videos, async (video) => {
-    const out = document.getElementById("videoOut");
-    out.innerHTML = `<div class="card" style="margin-top:12px"><span class="spinner"></span> Analyzing video...</div>`;
-    try {
-      const res = await API.analyzeVideo(video.videoId);
-      const tickers = Array.isArray(res.stocks) ? res.stocks : [];
-      out.innerHTML = `
-        <div class="card" style="margin-top:12px">
-          <div style="font-weight:700;font-size:15px;margin-bottom:10px">${video.title}</div>
-          <div style="color:#94a3b8;font-size:13px;line-height:1.6;margin-bottom:12px">${res.summary || ""}</div>
-          ${tickers.length ? `
-            <div style="font-size:11px;font-weight:700;color:#64748b;text-transform:uppercase;letter-spacing:1px;margin-bottom:8px">Tickers Mentioned</div>
-            <div style="display:flex;flex-wrap:wrap;gap:8px">
-              ${tickers.map(t => `<span style="background:#1e293b;border:1px solid #334155;border-radius:6px;padding:4px 10px;font-family:monospace;font-size:13px;font-weight:700">${t}</span>`).join("")}
-            </div>
-          ` : '<div style="color:#64748b">No specific tickers detected.</div>'}
-        </div>`;
-    } catch(e) {
-      out.innerHTML = `<div class="card" style="margin-top:12px;color:#f87171">❌ ${e.message}</div>`;
+```
+UI.renderVideos(videosCache, async (video)=>{
+  const out = document.getElementById("videoOut");
+
+  out.innerHTML = "Analyzing video...";
+
+  try{
+    const res = await API.analyzeVideo(video.videoId);
+
+    if(res.error){
+      out.innerHTML = `❌ ${res.error}`;
+      return;
     }
-  });
+
+    out.innerHTML = `
+      <div class="card">
+        <h3>AI Summary</h3>
+        <p>${res.summary}</p>
+
+        <h3>Tickers Found</h3>
+        <div>
+          ${(res.tickers || []).map(t=>`<span class="pill">${t}</span>`).join("") || "None"}
+        </div>
+      </div>
+    `;
+
+  }catch(e){
+    console.error(e);
+    out.innerHTML = "❌ Video analysis failed";
+  }
+});
+```
+
+}catch(e){
+console.error(e);
 }
+}
+
 
 // ---------------- EARNINGS ----------------
 async function loadEarnings() {
