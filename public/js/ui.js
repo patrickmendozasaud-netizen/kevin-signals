@@ -1,6 +1,5 @@
 // ---------------- IMPORT STATE ----------------
 import { STOCKS, prices, portfolio } from "./state.js";
-import { getScore } from "./ai-score.js";
 
 // ---------------- HELPERS ----------------
 function fmtPrice(p) {
@@ -34,7 +33,7 @@ export function renderStocks(sortBy = null) {
   }
 
   if (sortBy === "score") {
-    list.sort((a, b) => getScore(b.ticker) - getScore(a.ticker));
+    list.sort((a, b) => (b.score || 0) - (a.score || 0));
   }
 
   el.innerHTML = list.map(s => {
@@ -55,7 +54,7 @@ export function renderStocks(sortBy = null) {
 
         ${s.score != null ? `
           <div style="font-size:11px;margin-top:4px;color:#93c5fd">
-            AI Score: ${getScore(s.ticker)}
+            AI Score: ${Math.round(s.score)}
           </div>
         ` : ""}
 
@@ -144,8 +143,13 @@ export function renderVideos(videos, onClick) {
   }
 
   el.innerHTML = videos.map(v => `
-    <div class="card video-item" data-id="${v.videoId}">
-      <b>${v.title}</b>
+    <div class="card video-item" data-id="${v.videoId}" style="display:flex;gap:12px;align-items:flex-start;cursor:pointer;margin-bottom:10px">
+      ${v.thumbnail ? `<img src="${v.thumbnail}" style="width:120px;height:68px;border-radius:6px;object-fit:cover;flex-shrink:0">` : ''}
+      <div>
+        <div style="font-weight:700;font-size:14px;line-height:1.4;margin-bottom:4px">${v.title}</div>
+        <div style="font-size:11px;color:#64748b">${v.published ? new Date(v.published).toLocaleDateString() : ''}</div>
+        <div style="margin-top:6px;font-size:11px;color:#3b82f6">Click to analyze →</div>
+      </div>
     </div>
   `).join("");
 
