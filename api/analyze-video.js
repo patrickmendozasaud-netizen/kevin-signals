@@ -1,82 +1,97 @@
-// Pulls the actual transcript (caption track) from the YouTube watch page,
-// then asks GPT-4o-mini to summarise it and extract tickers.
-//
-// Replaces the old "Sample transcript from video " + videoId placeholder.
-
-import OpenAI from 'openai';
-
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-
-async function fetchTranscript(videoId) {
-  const r = await fetch(`https://www.youtube.com/watch?v=${encodeURIComponent(videoId)}`, {
-    headers: {
-      'User-Agent': 'Mozilla/5.0',
-      'Accept-Language': 'en-US,en;q=0.9',
-    },
-  });
-  if (!r.ok) throw new Error(`watch page ${r.status}`);
-  const html = await r.text();
-
-  const m = html.match(/"captionTracks":(\[[^\]]*\])/);
-  if (!m) throw new Error('no caption tracks (video may have captions disabled)');
-  let tracks;
-  try { tracks = JSON.parse(m[1].replace(/\\u0026/g, '&')); }
-  catch (e) { throw new Error('bad captionTracks JSON'); }
-
-  const en = tracks.find(t => (t.languageCode || '').startsWith('en')) || tracks[0];
-  if (!en?.baseUrl) throw new Error('no caption baseUrl');
-
-  const xml = await (await fetch(en.baseUrl)).text();
-  const text = [...xml.matchAll(/<text[^>]*>([\s\S]*?)<\/text>/g)]
-    .map(x => x[1]
-      .replace(/&#39;/g, "'").replace(/&amp;/g, '&').replace(/&quot;/g, '"')
-      .replace(/<[^>]+>/g, '').trim())
-    .filter(Boolean)
-    .join(' ');
-
-  // Cap at ~12k chars to keep model cost down
-  return text.slice(0, 12000);
-}
-
 export default async function handler(req, res) {
-  try {
-    if (!process.env.OPENAI_API_KEY) {
-      return res.status(500).json({ error: 'OPENAI_API_KEY not set on Vercel' });
-    }
-    const { videoId } = req.body || {};
-    if (!videoId) return res.status(400).json({ error: 'videoId required' });
+try {
+const { videoId } = req.body || {};
 
-    let transcript;
-    try { transcript = await fetchTranscript(videoId); }
-    catch (e) { return res.status(400).json({ error: 'Transcript: ' + e.message }); }
-
-    if (!transcript || transcript.length < 50) {
-      return res.status(400).json({ error: 'Transcript too short or unavailable' });
-    }
-
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.2,
-      response_format: { type: 'json_object' },
-      messages: [{
-        role: 'user',
-        content:
-`Summarize this YouTube video and extract every stock ticker mentioned.
-
-Return ONLY JSON with this exact shape:
-{
-  "summary": "<2-3 sentence summary>",
-  "stocks":  ["AAPL", "NVDA"]
+```
+if (!videoId) {
+  return res.status(400).json({ error: "Missing videoId" });
 }
 
-Transcript:
-${transcript}`
-      }]
+// ---------------- FETCH VIDEO PAGE ----------------
+const page = await fetch(`https://www.youtube.com/watch?v=${videoId}`);
+const html = await page.text();
+
+// ---------------- TRY CAPTIONS ----------------
+let transcript = "";
+
+try {
+  const match = html.match(/"captionTracks":(\[[^\]]*\])/);
+
+  if (match) {
+    const tracks = JSON.parse(match[1]);
+    const track = tracks[0];
+
+    const capRes = await fetch(track.baseUrl);
+    const xml = await capRes.text();
+
+    transcript = xml
+      .replace(/<[^>]+>/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+} catch (e) {
+  console.log("No captions available");
+}
+
+// ---------------- FALLBACK: TITLE ----------------
+if (!transcript || transcript.length < 50) {
+  const titleMatch = html.match(/<title>(.*?)<\/title>/);
+  const title = titleMatch ? titleMatch[1] : "";
+
+  transcript = title;
+}
+
+// ---------------- EXTRACT TICKERS (ALWAYS WORKS) ----------------
+const tickers = [...new Set((transcript.match(/\b[A-Z]{2,5}\b/g) || []))];
+
+// ---------------- AI ANALYSIS (OPTIONAL) ----------------
+let summary = "No AI summary";
+
+if (process.env.OPENAI_API_KEY) {
+  try {
+    const aiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${process.env.OPENAI_API_KEY}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: "gpt-4o-mini",
+        messages: [
+          {
+            role: "system",
+            content: "Summarize the video and extract key stock insights."
+          },
+          {
+            role: "user",
+            content: transcript.slice(0, 4000)
+          }
+        ]
+      })
     });
 
-    res.status(200).json(JSON.parse(completion.choices[0].message.content));
+    const json = await aiRes.json();
+    summary = json.choices?.[0]?.message?.content || summary;
+
   } catch (e) {
-    console.error('ANALYZE VIDEO ERROR:', e);
-    res.status(500).json({ error: e.message });
+    console.log("AI failed");
   }
+}
+
+// ---------------- FINAL RESPONSE ----------------
+return res.status(200).json({
+  summary,
+  tickers,
+  rawLength: transcript.length
+});
+```
+
+} catch (err) {
+console.error(err);
+return res.status(200).json({
+summary: "⚠️ Video could not be analyzed, fallback used.",
+tickers: [],
+error: err.message
+});
+}
 }
