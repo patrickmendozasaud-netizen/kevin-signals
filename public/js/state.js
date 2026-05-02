@@ -1,5 +1,6 @@
 export let STOCKS = [];
 export let prices = {};
+export const getPrices = () => prices;
 export let portfolio = JSON.parse(localStorage.getItem("portfolio") || "[]");
 
 export function setStocks(s){
