@@ -1,181 +1,191 @@
-import * as UI from "./ui.js";
+import { STOCKS, prices, portfolio, setStocks, setPrices } from "./state.js";
+import { renderStocks, renderPortfolio, renderVideos } from "./ui.js";
 import * as API from "./api.js";
-import {
-  STOCKS,
-  prices,
-  portfolio,
-  setStocks,
-  setPrices,
-  addToPortfolio
-} from "./state.js";
 
-// ---------------- GLOBALS ----------------
-let videosCache = [];
+// ---------------- INIT ----------------
+window.addEventListener("DOMContentLoaded", () => {
+  setupTabs();
+  setupButtons();
+  loadSaved();
+  setInterval(fetchPrices, 30000);
+});
 
-// ---------------- TAB ----------------
-function tab(name){
-  document.querySelectorAll(".tab").forEach(t=>t.style.display="none");
-  const el = document.getElementById(name);
-  if(el) el.style.display = "block";
+// ---------------- TABS ----------------
+function setupTabs() {
+  const tabs = document.querySelectorAll(".tab-btn");
 
-  document.querySelectorAll(".tab-btn").forEach(b=>{
-    b.classList.toggle("active", b.dataset.tab === name);
+  tabs.forEach(btn => {
+    btn.addEventListener("click", () => {
+      const tab = btn.dataset.tab;
+
+      document.querySelectorAll(".tab").forEach(t => t.style.display = "none");
+      document.getElementById(tab).style.display = "block";
+
+      tabs.forEach(b => b.classList.remove("active"));
+      btn.classList.add("active");
+    });
   });
 }
-window.tab = tab;
+
+// ---------------- BUTTONS ----------------
+function setupButtons() {
+  document.getElementById("parseBtn")?.addEventListener("click", parse);
+
+  document.getElementById("refreshVideos")?.addEventListener("click", loadVideos);
+
+  document.getElementById("loadEarnings")?.addEventListener("click", loadEarnings);
+
+  // 🔥 STOCK BUTTONS (event delegation)
+  document.getElementById("stocksGrid")?.addEventListener("click", (e) => {
+    if (e.target.classList.contains("analyze-btn")) {
+      const ticker = e.target.dataset.ticker;
+      analyze(ticker);
+    }
+  });
+
+  // 🔥 SORT BUTTON
+  document.querySelector("#stocks button")?.addEventListener("click", () => {
+    renderStocks("score");
+  });
+}
 
 // ---------------- PARSE ----------------
-async function parse(){
+async function parse() {
   const text = document.getElementById("report").value;
   const status = document.getElementById("status");
 
+  if (!text) return;
+
   status.innerText = "Parsing...";
 
-  const tickers = [...new Set((text.match(/\b[A-Z]{2,5}\b/g) || []))];
+  const words = text.match(/\b[A-Z]{2,5}\b/g) || [];
+
+  const tickers = [...new Set(words)];
 
   setStocks(tickers.map(t => ({ ticker: t })));
 
+  localStorage.setItem("stocks", JSON.stringify(STOCKS));
+
   status.innerText = "Fetching prices...";
 
-  try{
-    const res = await API.getPrices(tickers);
-    setPrices(res);
+  await fetchPrices();
 
-    UI.renderStocks();
-    UI.renderPortfolio();
+  for (const s of STOCKS) {
+  await analyze(s.ticker);
+}
 
-    status.innerText = "Done";
-  }catch(e){
+  status.innerText = "✅ Done";
+}
+
+// ---------------- PRICES ----------------
+async function fetchPrices() {
+  if (!STOCKS.length) return;
+
+  try {
+    const data = await API.getPrices(STOCKS.map(s => s.ticker));
+
+    setPrices(data);
+
+    renderStocks();
+    renderPortfolio();
+  } catch (e) {
     console.error(e);
-    status.innerText = "Error loading prices";
   }
 }
-window.parse = parse;
 
-// ---------------- ANALYZE STOCK ----------------
-async function analyze(ticker){
+// ---------------- ANALYZE ----------------
+async function analyze(ticker) {
   const el = document.getElementById("ai-" + ticker);
-  if(!el) return;
+  if (!el) return;
 
   el.innerText = "Analyzing...";
 
-  try{
+  try {
     const price = prices[ticker]?.price || 0;
 
-    const d = await API.analyzeStock(ticker, price);
+    const res = await API.analyzeStock(ticker, price);
 
-    const decision = d?.decision || "HOLD";
-    const confidence = d?.confidence || 0;
-    const entry = d?.entry ?? "-";
-    const target = d?.target ?? "-";
-    const stop = d?.stop ?? "-";
-    const score = d?.score ?? confidence;
-
-    el.innerHTML =
-      "<div class='ai-line'>" +
-      "<b>" + decision + "</b> (" + confidence + "%)<br>" +
-      "Score: " + score + "<br>" +
-      "Entry: " + entry + "<br>" +
-      "Target: " + target + "<br>" +
-      "Stop: " + stop +
-      "</div>";
-
+    // save score
     const stock = STOCKS.find(s => s.ticker === ticker);
-    if(stock) stock.score = score;
 
-    if(decision === "BUY" && confidence > 70){
-      addToPortfolio({ ticker, entry: price });
-      UI.renderPortfolio();
+    if (stock) {
+      stock.score = Number(res.score ?? res.confidence ?? 0);
+    } else {
+      console.warn("Stock not found for scoring:", ticker);
     }
 
-  }catch(e){
-    console.error(e);
-    el.innerText = "AI error";
-  }
-}
-window.analyze = analyze;
+    el.innerHTML = `
+  <div class="ai-line">
+    <b>${decision}</b> (${confidence}%)
+    <br>Score: ${score}
+    <br>Entry: ${entry}
+    <br>Target: ${target}
+    <br>Stop: ${stop}
+  </div>
+`;
 
-// ---------------- RANK ----------------
-function rankStocks(){
-  STOCKS.sort((a,b)=>(b.score||0)-(a.score||0));
-  UI.renderStocks();
-}
-window.sortStocks = rankStocks;
-
-// ---------------- VIDEOS (BULLETPROOF) ----------------
-async function loadVideos(){
-  const list = document.getElementById("videosList");
-  const out = document.getElementById("videoOut");
-
-  if(list) list.innerHTML = "Loading videos...";
-  if(out) out.innerHTML = "";
-
-  try{
-    videosCache = await API.getVideos();
-
-    if(!videosCache || !videosCache.length){
-      if(list) list.innerHTML = "No videos found";
-      return;
+    // auto buy
+    if (res.decision === "BUY" && res.confidence > 70) {
+      autoBuy(ticker, price);
     }
 
-    UI.renderVideos(videosCache, async (video)=>{
-      if(!video || !video.videoId) return;
-
-      out.innerHTML = "Analyzing video...";
-
-      try{
-        const res = await API.analyzeVideo(video.videoId);
-
-        out.innerHTML =
-          "<div class='card'>" +
-          (res?.summary || "No summary") +
-          "</div>";
-
-      }catch(err){
-        console.error(err);
-        out.innerHTML = "Video analysis failed";
-      }
-    });
-
-  }catch(e){
-    console.error(e);
-    if(list) list.innerHTML = "Error loading videos";
+  } catch (e) {
+    el.innerText = "❌ Error";
   }
+  renderStocks("score");
 }
-window.loadVideos = loadVideos;
 
-// ---------------- EARNINGS ----------------
-async function loadEarnings(){
-  const el = document.getElementById("earningsOut");
+window.runAnalyze = analyze;
 
-  try{
-    const data = await API.getEarnings();
+// ---------------- AUTO BUY ----------------
+function autoBuy(ticker, price) {
+  if (portfolio.find(p => p.ticker === ticker)) return;
 
-    el.innerHTML = data.map(e =>
-      "<div class='card'><b>" + e.ticker + "</b><br>" + e.summary + "</div>"
-    ).join("");
-
-  }catch(e){
-    console.error(e);
-    el.innerHTML = "Error loading earnings";
-  }
-}
-window.loadEarnings = loadEarnings;
-
-// ---------------- INIT ----------------
-window.addEventListener("DOMContentLoaded", ()=>{
-
-  document.querySelectorAll(".tab-btn").forEach(btn=>{
-    btn.addEventListener("click", ()=> tab(btn.dataset.tab));
+  portfolio.push({
+    ticker,
+    entry: price,
+    time: Date.now()
   });
 
-  document.getElementById("parseBtn")?.addEventListener("click", parse);
-  document.getElementById("rankBtn")?.addEventListener("click", rankStocks);
-  document.getElementById("refreshVideos")?.addEventListener("click", loadVideos);
-  document.getElementById("loadEarnings")?.addEventListener("click", loadEarnings);
+  localStorage.setItem("portfolio", JSON.stringify(portfolio));
+  renderPortfolio();
+}
 
-  UI.renderStocks();
-  UI.renderPortfolio();
+// ---------------- VIDEOS ----------------
+async function loadVideos() {
+  const el = document.getElementById("videosList");
+  if (el) el.innerHTML = `<div class="card" style="color:#94a3b8"><span class="spinner"></span> Loading videos...</div>`;
+  let videos;
+  try {
+    videos = await API.getVideos();
+  } catch(e) {
+    if (el) el.innerHTML = `<div class="card" style="color:#f87171">❌ Failed to load videos: ${e.message}</div>`;
+    return;
+  }
 
-  window.appReady = true;
-});
+  renderVideos(videos, async (video) => {
+    const res = await API.analyzeVideo(video.id);
+    document.getElementById("videoOut").innerText = res.summary;
+  });
+}
+
+// ---------------- EARNINGS ----------------
+async function loadEarnings() {
+  const data = await API.getEarnings();
+
+  document.getElementById("earningsOut").innerHTML =
+    data.map(e => `<div class="card">${e.ticker}: ${e.summary}</div>`).join("");
+}
+
+// ---------------- LOAD ----------------
+function loadSaved() {
+  const saved = localStorage.getItem("stocks");
+
+  if (saved) {
+    setStocks(JSON.parse(saved));
+    fetchPrices();
+  }
+
+  renderPortfolio();
+}
+window.appReady = true;
