@@ -1,5 +1,6 @@
 // ---------------- IMPORT STATE ----------------
 import { STOCKS, prices, portfolio } from "./state.js";
+import { getScore } from "./ai-score.js";
 
 // ---------------- HELPERS ----------------
 function fmtPrice(p) {
@@ -33,7 +34,7 @@ export function renderStocks(sortBy = null) {
   }
 
   if (sortBy === "score") {
-    list.sort((a, b) => (b.score || 0) - (a.score || 0));
+    list.sort((a, b) => getScore(b.ticker) - getScore(a.ticker));
   }
 
   el.innerHTML = list.map(s => {
@@ -54,7 +55,7 @@ export function renderStocks(sortBy = null) {
 
         ${s.score != null ? `
           <div style="font-size:11px;margin-top:4px;color:#93c5fd">
-            AI Score: ${Math.round(s.score)}
+            AI Score: ${getScore(s.ticker)}
           </div>
         ` : ""}
 
